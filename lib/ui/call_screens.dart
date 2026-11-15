@@ -477,6 +477,75 @@ class IncomingCallScreen extends ConsumerWidget {
   }
 }
 
+/// Лист «Куда выводить звук»: список доступных устройств, галочка у выбранного.
+class _OutputSheet extends StatelessWidget {
+  const _OutputSheet({required this.controller});
+
+  final CallController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final p = SadoStyle.of(context).palette;
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  s.soundOutput,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: p.text),
+                ),
+              ),
+            ),
+            // Список и выбранное устройство могут поменяться, пока лист открыт (гарнитуру выключили).
+            ValueListenableBuilder<List<AudioRoute>>(
+              valueListenable: controller.routes,
+              builder: (context, routes, _) => Consumer(
+                builder: (context, ref, _) {
+                  final active = ref.watch(callProvider)?.route;
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final r in routes)
+                        ListTile(
+                          key: Key('output.${r.kind.name}'),
+                          leading: Icon(switch (r.kind) {
+                            AudioKind.earpiece => Icons.phone_in_talk_outlined,
+                            AudioKind.speaker => Icons.volume_up_outlined,
+                            AudioKind.bluetooth => Icons.bluetooth_audio,
+                            AudioKind.wired => Icons.headset,
+                          }),
+                          title: Text(switch (r.kind) {
+                            AudioKind.earpiece => s.outputEarpiece,
+                            AudioKind.speaker => s.speaker,
+                            AudioKind.bluetooth =>
+                              r.label == null ? s.outputBluetooth : '${s.outputBluetooth} · ${r.label}',
+                            AudioKind.wired => s.outputWired,
+                          }),
+                          trailing: r.kind == active ? Icon(Icons.check, color: p.accent) : null,
+                          onTap: () {
+                            controller.selectRoute(r);
+                            Navigator.of(context).pop();
+                          },
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Исходящий вызов и сам разговор.
 class CallScreen extends ConsumerStatefulWidget {
   const CallScreen({super.key});
@@ -503,6 +572,21 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     );
     if (target == null || target.isEmpty || !mounted) return;
     ref.read(callProvider.notifier).transfer(target);
+  }
+
+  /// Кнопка «Динамик»: с одними трубкой и динамиком просто переключает, с гарнитурой — спрашивает, куда выводить звук.
+  Future<void> _speakerTap() async {
+    final controller = ref.read(callProvider.notifier);
+    final hasHeadset = controller.routes.value.any((r) => r.kind == AudioKind.bluetooth || r.kind == AudioKind.wired);
+    if (!hasHeadset) {
+      controller.toggleSpeaker();
+      return;
+    }
+    // Лист открываем на обычном навигаторе: когда звонок кончается, app.dart закрывает все окна, и лист уходит вместе с ними.
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => _OutputSheet(controller: controller),
+    );
   }
 
   @override
@@ -553,7 +637,18 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       s.keypad,
       onTap: active ? () => setState(() => _keypad = true) : null,
     );
-    final speaker = action('call.speaker', ic.speaker, s.speaker, on: call.speaker, onTap: controller.toggleSpeaker);
+    // Значок отражает, куда идёт звук; подсвечен всегда, кроме трубки.
+    final speaker = action(
+      'call.speaker',
+      switch (call.route) {
+        AudioKind.bluetooth => Icons.bluetooth_audio,
+        AudioKind.wired => Icons.headset,
+        _ => ic.speaker,
+      },
+      s.speaker,
+      on: call.route != AudioKind.earpiece,
+      onTap: _speakerTap,
+    );
     final hold = action('call.hold', ic.hold, s.hold, on: call.held, onTap: active ? controller.toggleHold : null);
     final transfer = action('call.transfer', ic.transfer, s.transfer, onTap: active ? _transfer : null);
     final more = action(

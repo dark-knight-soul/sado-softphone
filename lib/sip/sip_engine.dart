@@ -212,6 +212,7 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
           // Звук пошёл — ещё раз говорим телефону, куда его выводить (к этому моменту его «звуковая часть»
           // точно запущена и послушается).
           unawaited(_setSpeakerphone(c.speaker));
+          unawaited(_refreshRoutes());
         }
       case sip.CallStateEnum.STREAM:
         if (_isCurrent(sipCall) && state.originator == sip.Originator.remote) {
@@ -271,6 +272,7 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
     final hadSpeaker = call.value?.speaker ?? false;
     _current = null;
     call.value = null;
+    _stopWatchingRoutes();
     if (hadSpeaker) unawaited(_setSpeakerphone(false));
     final player = _webAudio;
     if (player != null) player.srcObject = null;
@@ -303,6 +305,102 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
     }
     // Разговор всегда начинается «в ухо» (или в гарнитуру, если она подключена); громкую связь включает человек.
     await _setSpeakerphone(false);
+    _watchRoutes();
+    await _refreshRoutes();
+  }
+
+  // ---- Устройства вывода звука ----
+
+  bool _watchingRoutes = false;
+
+  /// Следим за подключением и отключением гарнитур, пока идёт звонок.
+  void _watchRoutes() {
+    if (kIsWeb || _watchingRoutes) return;
+    try {
+      rtc.navigator.mediaDevices.ondevicechange = (_) => unawaited(_refreshRoutes());
+      _watchingRoutes = true;
+    } catch (_) {
+      // Платформа не сообщает о смене устройств — список обновится при следующем событии звонка.
+    }
+  }
+
+  void _stopWatchingRoutes() {
+    routes.value = const [];
+    if (!_watchingRoutes) return;
+    _watchingRoutes = false;
+    try {
+      rtc.navigator.mediaDevices.ondevicechange = null;
+    } catch (_) {
+      // Уже отписаны вместе с платформой.
+    }
+  }
+
+  AudioKind _bestKind(Set<AudioKind> kinds) => kinds.contains(AudioKind.bluetooth)
+      ? AudioKind.bluetooth
+      : kinds.contains(AudioKind.wired)
+      ? AudioKind.wired
+      : kinds.contains(AudioKind.earpiece)
+      ? AudioKind.earpiece
+      : AudioKind.speaker;
+
+  /// Читает у телефона список устройств звука и, если выбранное пропало (или появилась гарнитура,
+  /// пока звук шёл в трубку), переводит звук на подходящее.
+  Future<void> _refreshRoutes() async {
+    if (kIsWeb) return;
+    try {
+      final devices = await rtc.Helper.audiooutputs;
+      if (call.value == null) return; // звонок успел закончиться, пока ждали ответ телефона
+      final found = <AudioRoute>[];
+      for (final d in devices) {
+        // Код устройства на Android — тип из AudioDeviceKind.java: bluetooth, wired-headset, speaker, earpiece.
+        final kind = switch (d.deviceId) {
+          'earpiece' => AudioKind.earpiece,
+          'speaker' => AudioKind.speaker,
+          'bluetooth' => AudioKind.bluetooth,
+          'wired-headset' => AudioKind.wired,
+          _ => null,
+        };
+        if (kind == null || found.any((r) => r.kind == kind)) continue;
+        found.add(AudioRoute(kind, kind == AudioKind.bluetooth && d.label.isNotEmpty ? d.label : null));
+      }
+      if (found.isEmpty) return;
+      found.sort((a, b) => a.kind.index.compareTo(b.kind.index));
+      // Что было доступно до этого обновления — чтобы отличить «гарнитуру только что подключили»
+      // от «гарнитура давно подключена, но человек сам выбрал трубку».
+      final before = routes.value.map((r) => r.kind).toSet();
+      routes.value = found;
+
+      final current = call.value!.route;
+      final kinds = found.map((r) => r.kind).toSet();
+      final best = _bestKind(kinds);
+      final headsetAppeared =
+          current == AudioKind.earpiece &&
+          (best == AudioKind.bluetooth || best == AudioKind.wired) &&
+          !before.contains(best);
+      // Выбранного устройства больше нет — или гарнитуру подключили, пока звук шёл в трубку: уходим в лучшее из доступных.
+      if (!kinds.contains(current) || headsetAppeared) await _selectKind(best);
+    } catch (_) {
+      // Сбой в списке устройств не должен ломать разговор: останется переключатель «динамик».
+    }
+  }
+
+  /// Переключает звук на устройство и запоминает выбор в состоянии звонка.
+  Future<void> _selectKind(AudioKind kind) async {
+    if (call.value == null) return;
+    call.value = call.value!.copyWith(route: kind);
+    if (kIsWeb) return;
+    final id = switch (kind) {
+      AudioKind.earpiece => 'earpiece',
+      AudioKind.speaker => 'speaker',
+      AudioKind.bluetooth => 'bluetooth',
+      AudioKind.wired => 'wired-headset',
+    };
+    try {
+      await rtc.Helper.selectAudioOutput(id);
+    } catch (_) {
+      // Крайний случай для трубки и динамика: старый способ «громкая связь вкл/выкл».
+      if (kind == AudioKind.speaker || kind == AudioKind.earpiece) await _setSpeakerphone(kind == AudioKind.speaker);
+    }
   }
 
   Future<void> _setSpeakerphone(bool on) async {
@@ -414,8 +512,21 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   @override
   void setSpeaker(bool on) {
     if (call.value == null) return;
-    call.value = call.value!.copyWith(speaker: on);
-    unawaited(_setSpeakerphone(on));
+    // Выключая громкую связь, возвращаем звук в гарнитуру, если она есть, иначе в трубку.
+    final off = _bestKind(routes.value.map((r) => r.kind).toSet()..remove(AudioKind.speaker));
+    if (on || off == AudioKind.earpiece || off == AudioKind.speaker) {
+      // Прежний путь без списка устройств: так работает и там, где телефон список не назвал.
+      call.value = call.value!.copyWith(speaker: on);
+      unawaited(_setSpeakerphone(on));
+    } else {
+      unawaited(_selectKind(off));
+    }
+  }
+
+  @override
+  void setRoute(AudioRoute route) {
+    if (call.value == null) return;
+    unawaited(_selectKind(route.kind));
   }
 
   @override

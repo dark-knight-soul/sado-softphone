@@ -45,11 +45,14 @@ Wi-Fi or mobile data, with no SIM card involved.
 - Blind call transfer
 - Do Not Disturb (callers hear “busy”), silence the ringer for a single call
 - Redial: the call button on an empty field brings back the last number
+- Choose where the sound goes: earpiece, speaker, Bluetooth headset or wired headphones
+- Opens `tel:` and `sip:` links from the browser and other apps (the number is filled in; you press Call)
 
 **Works like a phone**
 - Stays registered in the background and rings when the app is closed or the phone is locked
 - Full-screen incoming call over the lock screen, heads-up notification with *Answer* / *Decline*
 - Ongoing-call notification with *Hang up*; the screen turns off when the phone is at your ear
+- Missed-call notification; your own choice of ringtone and vibration
 - Starts by itself after the phone reboots
 - Calls start in the earpiece (or a connected headset); the speaker is one tap away
 
@@ -63,6 +66,7 @@ Wi-Fi or mobile data, with no SIM card involved.
 **Contacts**
 - Your own contact list stored on the phone: add, edit, delete, search
 - Save a number straight from the call history; names show up in history and on the call screen
+- Optionally show the phone's address book (read on the device each time, never copied or uploaded)
 
 ## Screenshots
 
@@ -161,6 +165,9 @@ WebRTC support (FreePBX, FreeSWITCH, OpenSIPS, …) should work; reports are wel
 - The password is stored in the Android Keystore-backed secure storage, never in plain settings.
 - Call history and contacts stay on the phone and are excluded from cloud backups and device transfer.
 - The app has no analytics, crash reporting or advertising SDKs and contacts no server except your PBX.
+  The only exception is the **Check for updates** button in Settings: it asks GitHub for the latest release,
+  and only when you tap it.
+- The phone's address book is read only if you turn that on, stays in memory and is never stored or sent anywhere.
 - A `ws://` address is not encrypted — the sign-in screen warns about it. Use `wss://` whenever you can.
 - The web build exists for previewing the interface; a browser cannot protect a saved password the way
   Android does, so do not use it with real accounts.

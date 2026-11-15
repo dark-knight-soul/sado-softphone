@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../l10n/strings.dart';
+import '../state/dial_request.dart';
 import '../state/home_filter.dart';
 import '../theme/sado_icons.dart';
 import '../theme/sado_style.dart';
@@ -12,15 +13,25 @@ import 'settings_screen.dart';
 
 /// Основа приложения после входа: вкладки и нижнее меню.
 /// Порядок вкладок задаёт стиль (у «Купертино» и «Материала» он свой, как в их звонилках).
-class HomeShell extends StatefulWidget {
+class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
 
   @override
-  State<HomeShell> createState() => _HomeShellState();
+  ConsumerState<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends ConsumerState<HomeShell> {
   AppTab _tab = AppTab.dial;
+
+  @override
+  void initState() {
+    super.initState();
+    // Номер из ссылки tel:/sip: — открываем экран набора. Сам номер подставит и сотрёт запрос экран набора.
+    // fireImmediately: запрос мог прийти раньше, чем это окно построилось.
+    ref.listenManual(dialRequestProvider, (_, next) {
+      if (next != null && _tab != AppTab.dial) setState(() => _tab = AppTab.dial);
+    }, fireImmediately: true);
+  }
 
   void _open(AppTab tab) => setState(() => _tab = tab);
 

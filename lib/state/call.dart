@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/demo_data.dart';
+import '../l10n/strings.dart';
+import '../platform/call_keeper.dart';
 import '../sip/call_engine.dart';
 import '../sip/demo_engine.dart';
 import 'contacts.dart';
@@ -8,7 +11,7 @@ import 'history.dart';
 import 'session.dart';
 import 'settings.dart';
 
-export '../sip/call_engine.dart' show CallFailure, CallFailureEvent, CallInfo, CallPhase;
+export '../sip/call_engine.dart' show AudioKind, AudioRoute, CallFailure, CallFailureEvent, CallInfo, CallPhase;
 
 /// Текущий звонок (null — звонка нет).
 ///
@@ -22,12 +25,20 @@ class CallController extends Notifier<CallInfo?> {
   DateTime? _answeredAt;
   String? _lastDialed;
 
+  // Кто звонил и не дозвонился с тех пор, как человек последний раз видел окно приложения (новые — в конце).
+  final _missed = <String>[];
+
+  /// Человек сам отклонил текущий входящий. В истории такой звонок остаётся «пропущенным»,
+  /// но уведомлять о нём незачем: человек о нём и так знает.
+  bool _declinedByUser = false;
+
   @override
   CallInfo? build() {
     final engine = ref.watch(engineProvider);
     _engine = engine;
     _first = null;
     _answeredAt = null;
+    _missed.clear();
     if (engine == null) return null;
     void sync() {
       var next = engine.call.value;
@@ -63,18 +74,40 @@ class CallController extends Notifier<CallInfo?> {
     _first = null;
     _answeredAt = null;
     final now = DateTime.now();
+    final missed = first.incoming && answered == null;
     ref
         .read(historyProvider.notifier)
         .add(
           HistoryEntry(
             name: first.name,
             number: first.number,
-            kind: !first.incoming ? CallKind.outgoing : (answered == null ? CallKind.missed : CallKind.incoming),
+            kind: !first.incoming ? CallKind.outgoing : (missed ? CallKind.missed : CallKind.incoming),
             seconds: answered == null ? 0 : now.difference(answered).inSeconds,
             at: now,
           ),
         );
+    if (missed && !_declinedByUser) _notifyMissed(first);
+    _declinedByUser = false;
   }
+
+  /// Уведомление о пропущенном в шторке: одно на все звонки, в нём число и до трёх последних звонивших.
+  /// Показывает его телефон, и только когда окна приложения нет на экране (см. MissedCalls.kt).
+  void _notifyMissed(CallInfo call) {
+    // В демонстрации звонки ненастоящие — шторку не трогаем.
+    if (ref.read(sessionProvider)?.isDemo ?? true) return;
+    final s = S.byCode(ref.read(settingsProvider).lang ?? PlatformDispatcher.instance.locale.languageCode);
+    _missed.add(s.caller(call.name, call.number));
+    final recent = _missed.reversed.take(3).toList();
+    ref
+        .read(callKeeperProvider)
+        .missed(
+          title: _missed.length == 1 ? s.missedCallTitle : s.missedCallsTitle(_missed.length),
+          text: _missed.length == 1 ? _missed.single : recent.join(', '),
+        );
+  }
+
+  /// Окно приложения показано (или телефон отказался показывать уведомление): счёт пропущенных начинается заново.
+  void resetMissed() => _missed.clear();
 
   void dial(String number, {String? name}) {
     if (number.isEmpty) return;
@@ -102,11 +135,19 @@ class CallController extends Notifier<CallInfo?> {
 
   void accept() => _engine?.accept();
 
-  void hangUp() => _engine?.hangUp();
+  void hangUp() {
+    if (state?.phase == CallPhase.incoming) _declinedByUser = true;
+    _engine?.hangUp();
+  }
 
   void toggleMute() => _engine?.setMuted(!(state?.muted ?? false));
 
   void toggleSpeaker() => _engine?.setSpeaker(!(state?.speaker ?? false));
+
+  /// Доступные устройства звука (пусто, если движка нет).
+  ValueListenable<List<AudioRoute>> get routes => _engine?.routes ?? ValueNotifier<List<AudioRoute>>(const []);
+
+  void selectRoute(AudioRoute route) => _engine?.setRoute(route);
 
   void toggleHold() => _engine?.setHeld(!(state?.held ?? false));
 

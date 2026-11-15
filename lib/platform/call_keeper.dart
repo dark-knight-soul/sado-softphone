@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +12,9 @@ abstract class CallKeeper {
 
   /// Нажата «Ответить» в уведомлении о входящем.
   VoidCallback? onAccept;
+
+  /// Человек увидел окно приложения: уведомление о пропущенных убрано, счёт начинается заново.
+  VoidCallback? onMissedSeen;
 
   /// Режим ожидания: тихое постоянное уведомление, приложение остаётся на связи в фоне.
   Future<void> standby({required String title, required String text});
@@ -27,14 +32,35 @@ abstract class CallKeeper {
   /// Идёт вызов или разговор: уведомление с кнопкой «Завершить», микрофон не отключается в фоне.
   Future<void> show({required String title, required String text, required String hangUpLabel});
 
+  /// Открыта ссылка tel: или sip: — телефон просит подставить номер на экране набора (звонок не начинается).
+  ValueChanged<String>? onDialRequest;
+
+  /// Номер из ссылки, пришедшей, пока приложение запускалось. Возвращает его один раз и забывает.
+  Future<String?> takePendingDial() async => null;
+
   /// Убирает уведомление и останавливает службу.
   Future<void> hide();
+
+  /// Уведомление о пропущенном звонке (одно на все; телефон не показывает его, пока окно на экране).
+  Future<void> missed({required String title, required String text}) async {}
+
+  /// Убирает уведомление о пропущенных.
+  Future<void> clearMissed() async {}
 
   /// Гасить ли экран, когда телефон поднесён к уху.
   Future<void> setProximity(bool on);
 
   /// Показывать ли окно приложения поверх экрана блокировки (на время звонка).
   Future<void> setOverLockScreen(bool on);
+
+  /// Мелодия и вибрация входящих. Хранит их сам телефон: звонить должна фоновая служба, даже без окна.
+  Future<RingSettings> ringSettings() async => const RingSettings();
+
+  /// Открывает системный выбор мелодии; возвращает состояние после закрытия окна (прежнее, если передумали).
+  Future<RingSettings> pickRingtone() async => const RingSettings();
+
+  /// Включает или выключает вибрацию при входящем; возвращает новое состояние.
+  Future<RingSettings> setRingVibration(bool on) async => const RingSettings();
 
   /// Снято ли с приложения ограничение батареи.
   Future<bool> batteryUnrestricted();
@@ -65,6 +91,9 @@ abstract class CallKeeper {
 
   /// Меняет значок на рабочем столе.
   Future<void> setAppIcon(String name) async {}
+
+  /// Открывает страницу в браузере телефона (страница выпуска на GitHub).
+  Future<void> openUrl(String url) async {}
 }
 
 /// Там, где сторож не нужен или его нет (браузер), ничего не делает.
@@ -108,6 +137,13 @@ class AndroidCallKeeper extends CallKeeper {
           onHangUp?.call();
         case 'accept':
           onAccept?.call();
+        case 'missedSeen':
+          onMissedSeen?.call();
+        case 'dialRequest':
+          final number = call.arguments;
+          if (number is String) onDialRequest?.call(number);
+          // Номер уже доставлен событием — убираем его из очереди, чтобы он не всплыл при следующем запуске.
+          unawaited(takePendingDial());
       }
     });
   }
@@ -150,13 +186,33 @@ class AndroidCallKeeper extends CallKeeper {
       _invoke<void>('show', {'title': title, 'text': text, 'primary': hangUpLabel});
 
   @override
+  Future<String?> takePendingDial() => _invoke<String>('takePendingDial');
+
+  @override
   Future<void> hide() => _invoke<void>('hide');
+
+  @override
+  Future<void> missed({required String title, required String text}) =>
+      _invoke<void>('missed', {'title': title, 'text': text});
+
+  @override
+  Future<void> clearMissed() => _invoke<void>('clearMissed');
 
   @override
   Future<void> setProximity(bool on) => _invoke<void>('proximity', on);
 
   @override
   Future<void> setOverLockScreen(bool on) => _invoke<void>('lockScreen', on);
+
+  @override
+  Future<RingSettings> ringSettings() async => RingSettings.fromMap(await _invoke<Object?>('ringSettings'));
+
+  @override
+  Future<RingSettings> pickRingtone() async => RingSettings.fromMap(await _invoke<Object?>('pickRingtone'));
+
+  @override
+  Future<RingSettings> setRingVibration(bool on) async =>
+      RingSettings.fromMap(await _invoke<Object?>('setRingVibration', on));
 
   @override
   Future<bool> batteryUnrestricted() async => await _invoke<bool>('batteryUnrestricted') ?? true;
@@ -187,6 +243,29 @@ class AndroidCallKeeper extends CallKeeper {
 
   @override
   Future<void> setAppIcon(String name) => _invoke<void>('setAppIcon', name);
+
+  // Свой метод вместо пакета url_launcher: нужен один вызов, а адрес телефон ещё раз сверяет сам.
+  @override
+  Future<void> openUrl(String url) => _invoke<void>('openUrl', url);
+}
+
+/// Мелодия и вибрация входящих звонков, как их видит телефон.
+class RingSettings {
+  const RingSettings({this.title, this.vibrate = true});
+
+  /// Из ответа телефона; если ответа нет (сбой, не Android) — значения по умолчанию.
+  factory RingSettings.fromMap(Object? raw) {
+    if (raw is! Map) return const RingSettings();
+    final title = raw['title'];
+    final vibrate = raw['vibrate'];
+    return RingSettings(title: title is String ? title : null, vibrate: vibrate is bool ? vibrate : true);
+  }
+
+  /// Название выбранной мелодии; null — системная мелодия звонка («как в телефоне»).
+  final String? title;
+
+  /// Вибрировать ли при входящем.
+  final bool vibrate;
 }
 
 final callKeeperProvider = Provider<CallKeeper>(

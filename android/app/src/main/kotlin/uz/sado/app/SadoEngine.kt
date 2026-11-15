@@ -52,12 +52,26 @@ object SadoEngine {
         val ch = MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL)
         ch.setMethodCallHandler { call, result -> handle(app, call, result) }
         channel = ch
+        PhoneContacts.register(app, engine.dartExecutor.binaryMessenger)
         return engine
     }
 
-    /** Сообщение в Dart: «hangUp» или «accept» (кнопки в уведомлении). */
-    fun send(method: String) {
-        main.post { channel?.invokeMethod(method, null) }
+    /**
+     * Номер из ссылки tel:/sip:, который Dart ещё не забрал. При холодном запуске мотор может быть
+     * не готов принять событие, поэтому номер ждёт здесь, пока Dart не спросит ([takePendingDial]).
+     */
+    @Volatile
+    var pendingDial: String? = null
+
+    /** Запоминает номер и сразу сообщает Dart — на случай, когда приложение уже запущено. */
+    fun requestDial(number: String) {
+        pendingDial = number
+        send("dialRequest", number)
+    }
+
+    /** Сообщение в Dart: «hangUp» или «accept» (кнопки в уведомлении); при необходимости — с одним значением. */
+    fun send(method: String, argument: Any? = null) {
+        main.post { channel?.invokeMethod(method, argument) }
     }
 
     private fun handle(app: Context, call: MethodCall, result: MethodChannel.Result) {
@@ -77,6 +91,14 @@ object SadoEngine {
                 )
                 result.success(null)
             }
+            "missed" -> {
+                MissedCalls.show(app, call.argument<String>("title") ?: "", call.argument<String>("text") ?: "")
+                result.success(null)
+            }
+            "clearMissed" -> {
+                MissedCalls.clear(app)
+                result.success(null)
+            }
             "hide" -> {
                 CallService.stop(app)
                 setProximity(app, false)
@@ -89,6 +111,12 @@ object SadoEngine {
             "lockScreen" -> {
                 activity?.get()?.setOverLockScreen(call.arguments as? Boolean ?: false)
                 result.success(null)
+            }
+            "ringSettings" -> result.success(IncomingRing.state(app))
+            "pickRingtone" -> pickRingtone(app, result)
+            "setRingVibration" -> {
+                IncomingRing.setVibrate(app, call.arguments as? Boolean ?: true)
+                result.success(IncomingRing.state(app))
             }
             "batteryUnrestricted" -> result.success(batteryUnrestricted(app))
             "askBattery" -> {
@@ -111,13 +139,64 @@ object SadoEngine {
                 openFullScreenSettings(app)
                 result.success(null)
             }
+            "takePendingDial" -> {
+                val number = pendingDial
+                pendingDial = null
+                result.success(number)
+            }
             "appIcon" -> result.success(appIcon(app))
             "setAppIcon" -> {
                 setAppIcon(app, call.arguments as? String ?: "")
                 result.success(null)
             }
+            "openUrl" -> {
+                // Открываем только страницы своего репозитория: адрес пришёл из ответа сервера,
+                // и подменённая ссылка не должна увести человека на чужой сайт.
+                val url = call.arguments as? String ?: ""
+                if (url.startsWith("https://github.com/dark-knight-soul/sado-softphone/")) {
+                    try {
+                        app.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    } catch (e: Exception) {
+                        // На телефоне нет браузера — молча ничего не делаем, приложение не падает.
+                    }
+                }
+                result.success(null)
+            }
             else -> result.notImplemented()
         }
+    }
+
+    /**
+     * Ответ Dart, ждущий закрытия системного окна выбора мелодии. Хранится здесь, а не в окне приложения:
+     * пока открыт выбор, Android может пересоздать окно, а результат придёт уже новому.
+     */
+    private var ringtoneResult: MethodChannel.Result? = null
+
+    /** Открывает системный выбор мелодии звонка; ответ Dart — состояние после закрытия окна. */
+    private fun pickRingtone(app: Context, result: MethodChannel.Result) {
+        val window = activity?.get()
+        if (window == null) {
+            // Без окна выбор не открыть — возвращаем всё как есть.
+            result.success(IncomingRing.state(app))
+            return
+        }
+        // Прошлый вопрос почему-то остался без ответа — отвечаем на него, чтобы Dart не ждал вечно.
+        ringtoneResult?.success(IncomingRing.state(app))
+        ringtoneResult = result
+        if (!window.pickRingtone(IncomingRing.chosenUri(app))) ringtonePicked(app, picked = false, uri = null)
+    }
+
+    /**
+     * Окно выбора мелодии закрылось. [picked] — человек что-то выбрал (а не нажал «Назад»);
+     * [uri] null или системный адрес — «как в телефоне». Ответ Dart отправляется ровно один раз.
+     */
+    fun ringtonePicked(app: Context, picked: Boolean, uri: Uri?) {
+        val result = ringtoneResult ?: return
+        ringtoneResult = null
+        if (picked) IncomingRing.setRingtone(app, uri)
+        result.success(IncomingRing.state(app))
     }
 
     /** Гасит экран, когда телефон у уха, чтобы щека не нажимала кнопки. */

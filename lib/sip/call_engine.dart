@@ -47,6 +47,29 @@ String dialTarget(String raw) => raw.replaceAll(RegExp(r'[^A-Za-z0-9+*#._-]'), '
 
 enum CallPhase { incoming, outgoing, active }
 
+/// Куда может идти звук разговора.
+enum AudioKind { earpiece, speaker, bluetooth, wired }
+
+/// Одно из доступных устройств вывода звука.
+@immutable
+class AudioRoute {
+  const AudioRoute(this.kind, [this.label]);
+
+  final AudioKind kind;
+
+  /// Название от телефона (например, имя Bluetooth-гарнитуры); null — названия нет.
+  final String? label;
+
+  @override
+  bool operator ==(Object other) => other is AudioRoute && other.kind == kind && other.label == label;
+
+  @override
+  int get hashCode => Object.hash(kind, label);
+
+  @override
+  String toString() => 'AudioRoute(${kind.name}${label == null ? '' : ', $label'})';
+}
+
 @immutable
 class CallInfo {
   const CallInfo({
@@ -56,7 +79,7 @@ class CallInfo {
     this.name,
     this.since,
     this.muted = false,
-    this.speaker = false,
+    this.route = AudioKind.earpiece,
     this.held = false,
     this.secure = false,
   });
@@ -71,8 +94,13 @@ class CallInfo {
   /// Когда начался разговор (для таймера); null, пока идёт вызов.
   final DateTime? since;
   final bool muted;
-  final bool speaker;
   final bool held;
+
+  /// Куда сейчас идёт звук.
+  final AudioKind route;
+
+  /// Включена ли громкая связь (звук идёт в динамик). Остальное — в [route].
+  bool get speaker => route == AudioKind.speaker;
 
   /// Звонок зашифрован целиком. Надпись «Защищённый звонок» показываем только при true.
   final bool secure;
@@ -85,22 +113,24 @@ class CallInfo {
     name: value,
     since: since,
     muted: muted,
-    speaker: speaker,
+    route: route,
     held: held,
     secure: secure,
   );
 
-  CallInfo copyWith({CallPhase? phase, DateTime? since, bool? muted, bool? speaker, bool? held}) => CallInfo(
-    phase: phase ?? this.phase,
-    number: number,
-    incoming: incoming,
-    name: name,
-    since: since ?? this.since,
-    muted: muted ?? this.muted,
-    speaker: speaker ?? this.speaker,
-    held: held ?? this.held,
-    secure: secure,
-  );
+  /// [speaker] — короткий путь для «громкая связь вкл/выкл»: сводится к [route]; если задан и он, главнее [route].
+  CallInfo copyWith({CallPhase? phase, DateTime? since, bool? muted, bool? speaker, bool? held, AudioKind? route}) =>
+      CallInfo(
+        phase: phase ?? this.phase,
+        number: number,
+        incoming: incoming,
+        name: name,
+        since: since ?? this.since,
+        muted: muted ?? this.muted,
+        route: speaker != null ? (speaker ? AudioKind.speaker : AudioKind.earpiece) : (route ?? this.route),
+        held: held ?? this.held,
+        secure: secure,
+      );
 
   @override
   bool operator ==(Object other) =>
@@ -111,12 +141,12 @@ class CallInfo {
       other.name == name &&
       other.since == since &&
       other.muted == muted &&
-      other.speaker == speaker &&
+      other.route == route &&
       other.held == held &&
       other.secure == secure;
 
   @override
-  int get hashCode => Object.hash(phase, number, incoming, name, since, muted, speaker, held, secure);
+  int get hashCode => Object.hash(phase, number, incoming, name, since, muted, route, held, secure);
 }
 
 /// Почему звонок не состоялся — чтобы показать человеку понятную причину.
@@ -138,6 +168,9 @@ abstract class CallEngine {
 
   /// Текущий звонок; null — звонка нет.
   final ValueNotifier<CallInfo?> call = ValueNotifier(null);
+
+  /// Устройства вывода звука, доступные сейчас (пусто, пока звонка нет или платформа их не назвала).
+  final ValueNotifier<List<AudioRoute>> routes = ValueNotifier(const []);
 
   final StreamController<CallFailureEvent> _failures = StreamController.broadcast();
 
@@ -173,6 +206,9 @@ abstract class CallEngine {
 
   void setSpeaker(bool on);
 
+  /// Выбрать, куда выводить звук (из [routes]).
+  void setRoute(AudioRoute route);
+
   /// Донабор цифр во время разговора (например, в голосовом меню).
   void sendDtmf(String tone);
 
@@ -181,5 +217,6 @@ abstract class CallEngine {
     _failures.close();
     link.dispose();
     call.dispose();
+    routes.dispose();
   }
 }

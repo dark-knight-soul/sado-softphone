@@ -1,14 +1,17 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../l10n/strings.dart';
 import '../platform/call_keeper.dart';
+import '../platform/phone_contacts.dart';
 import '../state/call.dart';
 import '../state/session.dart';
 import '../state/settings.dart';
 import '../theme/sado_icons.dart';
 import '../theme/sado_style.dart';
 import '../theme/styles.dart';
+import 'update_section.dart';
 import 'widgets.dart';
 
 /// Вкладка «Ещё»: стиль, тема, язык, учётная запись.
@@ -96,6 +99,23 @@ class SettingsScreen extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
           child: Text(s.dndNote, style: TextStyle(fontSize: 13, color: p.muted, height: 1.4)),
         ),
+        // Мелодию входящих выбирает сам Android; в браузере и в демонстрации звонков через телефон нет.
+        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android && account != null && !account.isDemo)
+          const _RingRows(),
+        if (phoneContactsAvailable(account)) ...[
+          SectionLabel(s.phoneContactsTitle),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Segmented<bool>(
+              key: const Key('settings.phoneContacts'),
+              options: {false: s.dndOff, true: s.dndOn},
+              selected: settings.phoneContacts,
+              // Включение просит разрешение у телефона; выключение просто прячет контакты.
+              onChanged: (on) =>
+                  on ? ref.read(phoneContactListProvider.notifier).enable() : controller.setPhoneContacts(false),
+            ),
+          ),
+        ],
         const SizedBox(height: 18),
         ListGroup(
           dividerIndent: 16,
@@ -223,6 +243,8 @@ class SettingsScreen extends ConsumerWidget {
             child: Text(s.demoNote, style: TextStyle(fontSize: 13, color: p.muted, height: 1.4)),
           ),
         ],
+        // Последним, чтобы служебный раздел не отодвигал настройки, которые меняют чаще.
+        const AboutSection(),
       ],
     );
   }
@@ -287,7 +309,16 @@ class ChoiceRow<T> extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
         child: Row(
           children: [
-            Text(title, style: TextStyle(fontSize: 16, color: p.text)),
+            // Название тоже может сжиматься: на узком экране с крупным системным шрифтом оно иначе
+            // вытесняло бы значение за край строки.
+            Flexible(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 16, color: p.text),
+              ),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -469,6 +500,118 @@ class _PermissionRowState extends State<_PermissionRow> with WidgetsBindingObser
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 0, 4, 0),
             child: Text(widget.note, style: TextStyle(fontSize: 13, color: p.muted, height: 1.4)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Мелодия и вибрация входящих. Значения хранит телефон (их читает фоновая служба), здесь только показ:
+/// состояние читается при открытии, после возвращения в приложение и после каждого действия.
+class _RingRows extends ConsumerStatefulWidget {
+  const _RingRows();
+
+  @override
+  ConsumerState<_RingRows> createState() => _RingRowsState();
+}
+
+class _RingRowsState extends ConsumerState<_RingRows> with WidgetsBindingObserver {
+  RingSettings? _state;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _apply(ref.read(callKeeperProvider).ringSettings());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Мелодию могли удалить или поменять, пока приложение было свёрнуто, — перечитываем.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _apply(ref.read(callKeeperProvider).ringSettings());
+  }
+
+  Future<void> _apply(Future<RingSettings> next) async {
+    final value = await next;
+    if (mounted) setState(() => _state = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = _state;
+    if (state == null) return const SizedBox.shrink();
+    final s = S.of(context);
+    final p = SadoStyle.of(context).palette;
+    final keeper = ref.read(callKeeperProvider);
+    return Padding(
+      padding: const EdgeInsets.only(top: 18),
+      child: ListGroup(
+        dividerIndent: 16,
+        children: [
+          InkWell(
+            key: const Key('settings.ringtone'),
+            onTap: () => _apply(keeper.pickRingtone()),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
+              child: Row(
+                children: [
+                  // Подпись может сжиматься: на узком экране и длинном языке строка не должна вылезать за край.
+                  Flexible(
+                    child: Text(
+                      s.ringtone,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 16, color: p.text),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      state.title ?? s.ringtoneDefault,
+                      key: const Key('settings.ringtone.title'),
+                      textAlign: TextAlign.end,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 15, color: p.muted),
+                    ),
+                  ),
+                  Icon(SadoIcons.of(context).chevron, color: p.muted),
+                ],
+              ),
+            ),
+          ),
+          // Вкл/выкл — переключателем прямо в строке: выбирать из списка двух вариантов здесь лишний шаг.
+          InkWell(
+            key: const Key('settings.ringVibration'),
+            onTap: () => _apply(keeper.setRingVibration(!state.vibrate)),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 10, 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      s.ringVibration,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 16, color: p.text),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Switch.adaptive(
+                    key: const Key('settings.ringVibration.switch'),
+                    value: state.vibrate,
+                    onChanged: (on) => _apply(keeper.setRingVibration(on)),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),

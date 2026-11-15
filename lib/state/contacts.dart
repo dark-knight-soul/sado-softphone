@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/demo_data.dart';
+import '../platform/phone_contacts.dart';
 import 'session.dart';
 import 'settings.dart';
 
@@ -50,6 +51,12 @@ class ContactsController extends Notifier<List<Contact>> {
     if (number.isEmpty) return null;
     for (final c in state) {
       if (c.number == number) return c.name;
+    }
+    // Контакты телефона: номера в адресной книге пишут по-разному («+998 90 123-45-67»), сравниваем по цифрам.
+    final wanted = normalizeNumber(number);
+    if (wanted.isEmpty) return null;
+    for (final c in ref.read(phoneContactListProvider)) {
+      if (normalizeNumber(c.number) == wanted) return c.name;
     }
     return null;
   }

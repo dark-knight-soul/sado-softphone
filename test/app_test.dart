@@ -37,6 +37,16 @@ class RecordingKeeper extends CallKeeper {
   /// Что отвечать на вопрос «снято ли ограничение батареи».
   bool unrestricted = false;
 
+  /// Номер из ссылки tel:/sip:, «пришедшей» до запуска; задаётся в [pendingDialOnStart] до pumpApp.
+  String? pendingDial = pendingDialOnStart;
+
+  @override
+  Future<String?> takePendingDial() async {
+    final number = pendingDial;
+    pendingDial = null;
+    return number;
+  }
+
   @override
   Future<void> standby({required String title, required String text}) async => log.add('standby: $text');
 
@@ -62,12 +72,43 @@ class RecordingKeeper extends CallKeeper {
   @override
   Future<void> setOverLockScreen(bool on) async => log.add('lock: $on');
 
+  /// Мелодия и вибрация «на телефоне»; [pickedRingtone] — что «выберет» человек в системном окне.
+  RingSettings ringState = const RingSettings();
+  String? pickedRingtone = 'Звонок 1';
+
+  @override
+  Future<RingSettings> ringSettings() async => ringState;
+
+  @override
+  Future<RingSettings> pickRingtone() async {
+    log.add('pickRingtone');
+    return ringState = RingSettings(title: pickedRingtone, vibrate: ringState.vibrate);
+  }
+
+  @override
+  Future<RingSettings> setRingVibration(bool on) async {
+    log.add('setRingVibration: $on');
+    return ringState = RingSettings(title: ringState.title, vibrate: on);
+  }
+
   @override
   Future<bool> batteryUnrestricted() async => unrestricted;
 
   @override
   Future<void> askBatteryExemption() async => log.add('askBattery');
+
+  @override
+  Future<void> missed({required String title, required String text}) async => log.add('missed: $title | $text');
+
+  @override
+  Future<void> clearMissed() async => log.add('clearMissed');
+
+  @override
+  Future<void> openUrl(String url) async => log.add('openUrl: $url');
 }
+
+/// Что новый [RecordingKeeper] вернёт как «номер из ссылки при запуске» (тесты открытия ссылок).
+String? pendingDialOnStart;
 
 /// Сторож последнего запущенного приложения — чтобы тест мог посмотреть его записи.
 late RecordingKeeper keeper;

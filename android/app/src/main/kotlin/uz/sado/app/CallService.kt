@@ -10,7 +10,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
-import android.media.RingtoneManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -33,9 +32,9 @@ class CallService : Service() {
 
         private const val CHANNEL_LINK = "link"
         private const val CHANNEL_CALLS = "calls"
-        private const val CHANNEL_INCOMING = "incoming"
+        // Каналы входящих со звуком зависят от выбранной мелодии и вибрации, их имена даёт [IncomingRing]
+        // (например, «incoming_g3»). Тихие каналы от мелодии не зависят — имена у них постоянные.
         private const val CHANNEL_INCOMING_SILENT = "incoming_silent"
-        private const val CHANNEL_INCOMING_OPEN = "incoming_open"
         private const val CHANNEL_INCOMING_OPEN_SILENT = "incoming_open_silent"
         private const val NOTIFICATION_ID = 1
         private const val ACTION_HANG_UP = "uz.sado.app.HANG_UP"
@@ -174,13 +173,22 @@ class CallService : Service() {
         val channel = NotificationChannel(id, name, importance)
         channel.setShowBadge(false)
         if (ringing) {
+            // Новый канал звонка — значит, поколение сменилось или это первый звонок: заодно убираем
+            // устаревшие каналы, которые не удалось удалить раньше (и каналы старых версий приложения).
+            IncomingRing.cleanUp(this)
             val attributes = AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build()
-            channel.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE), attributes)
-            channel.enableVibration(true)
-            channel.vibrationPattern = longArrayOf(0, 800, 600, 800, 600)
+            // Мелодия, выбранная в настройках приложения; если её нет — системная мелодия звонка.
+            channel.setSound(IncomingRing.soundUri(this), attributes)
+            if (IncomingRing.vibrate(this)) {
+                channel.enableVibration(true)
+                channel.vibrationPattern = IncomingRing.vibrationPattern
+            } else {
+                // Ритм не задаём: его установка сама снова включает вибрацию канала.
+                channel.enableVibration(false)
+            }
             channel.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         } else {
             channel.setSound(null, null)
@@ -253,17 +261,20 @@ class CallService : Service() {
         // Приложение уже на экране и само показывает входящий — всплывающая плашка поверх него не нужна:
         // она закрывала бы имя звонящего. Берём канал пониже важностью: мелодия играет, плашка не всплывает.
         val open = MainActivity.visible
+        // Каналы со звуком — текущего поколения, то есть с выбранными мелодией и вибрацией.
+        val incoming = IncomingRing.incomingChannel(this)
+        val incomingOpen = IncomingRing.incomingOpenChannel(this)
         // «Без звука»: то же уведомление, но на канале без мелодии и вибрации.
         val channelId = when {
             open && silent -> CHANNEL_INCOMING_OPEN_SILENT
-            open -> CHANNEL_INCOMING_OPEN
+            open -> incomingOpen
             silent -> CHANNEL_INCOMING_SILENT
-            else -> CHANNEL_INCOMING
+            else -> incoming
         }
         when (channelId) {
             CHANNEL_INCOMING_OPEN_SILENT ->
                 channel(channelId, "SADO: входящие без звука (приложение открыто)", NotificationManager.IMPORTANCE_LOW)
-            CHANNEL_INCOMING_OPEN ->
+            incomingOpen ->
                 channel(channelId, "SADO: входящие (приложение открыто)", NotificationManager.IMPORTANCE_DEFAULT, ringing = true)
             CHANNEL_INCOMING_SILENT -> channel(channelId, "SADO: входящие без звука", NotificationManager.IMPORTANCE_HIGH)
             else -> channel(channelId, "SADO: входящие звонки", NotificationManager.IMPORTANCE_HIGH, ringing = true)

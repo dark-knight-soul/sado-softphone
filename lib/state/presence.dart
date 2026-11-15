@@ -6,6 +6,7 @@ import '../l10n/strings.dart';
 import '../platform/call_keeper.dart';
 import '../sip/call_engine.dart';
 import 'call.dart';
+import 'dial_request.dart';
 import 'session.dart';
 import 'settings.dart';
 
@@ -73,8 +74,8 @@ class _Presence {
     }
     _shown = next;
 
-    // Экран гасим у уха только в разговоре без громкой связи: при входящем на него нужно смотреть.
-    final proximity = call != null && call.phase != CallPhase.incoming && !call.speaker;
+    // Экран гасим у уха только в разговоре через трубку (не динамик и не гарнитура): при входящем на него нужно смотреть.
+    final proximity = call != null && call.phase != CallPhase.incoming && call.route == AudioKind.earpiece;
     if (proximity != _proximity) {
       _proximity = proximity;
       _keeper.setProximity(proximity);
@@ -94,6 +95,12 @@ final presenceProvider = Provider<void>((ref) {
   final presence = _Presence(ref, keeper);
   keeper.onHangUp = () => ref.read(callProvider.notifier).hangUp();
   keeper.onAccept = () => ref.read(callProvider.notifier).accept();
+  keeper.onMissedSeen = () => ref.read(callProvider.notifier).resetMissed();
+  keeper.onDialRequest = (number) => ref.read(dialRequestProvider.notifier).request(number);
+  // Ссылка могла открыть приложение при холодном запуске, пока событие некуда было доставить.
+  keeper.takePendingDial().then((number) {
+    if (number != null && ref.mounted) ref.read(dialRequestProvider.notifier).request(number);
+  });
 
   ref.listen(callProvider, (_, _) => presence.sync());
   ref.listen(linkProvider, (_, _) => presence.sync());

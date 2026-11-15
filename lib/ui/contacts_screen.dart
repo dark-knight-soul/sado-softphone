@@ -4,9 +4,12 @@ import 'package:material_ui/material_ui.dart';
 
 import '../data/demo_data.dart';
 import '../l10n/strings.dart';
+import '../platform/phone_contacts.dart';
 import '../state/call.dart';
 import '../state/contacts.dart';
 import '../state/home_filter.dart';
+import '../state/session.dart';
+import '../state/settings.dart';
 import '../theme/sado_icons.dart';
 import '../theme/sado_style.dart';
 import 'widgets.dart';
@@ -82,8 +85,27 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
     final all = ref.watch(contactsProvider);
     final people = all.where((c) => !c.isGroup && _matches(c, query)).toList();
     final groups = all.where((c) => c.isGroup && _matches(c, query)).toList();
+    // Адресная книга телефона: только чтение, поэтому у её строк нет меню «изменить / удалить».
+    final phoneAll = ref.watch(visiblePhoneContactsProvider);
+    final phone = phoneAll.where((c) => _matches(c, query)).toList();
+    final canOfferPhone = phoneContactsAvailable(ref.watch(sessionProvider));
+    final phoneOn = ref.watch(settingsProvider.select((s) => s.phoneContacts));
     void dial(Contact c) => ref.read(callProvider.notifier).dial(c.number, name: c.name);
     Widget rowOf(Contact c) => _ContactRow(contact: c, onCall: () => dial(c), onLongPress: () => _menu(c));
+    final phoneButton = canOfferPhone && !phoneOn
+        ? Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: TextButton.icon(
+                key: const Key('contacts.phone'),
+                onPressed: () => ref.read(phoneContactListProvider.notifier).enable(),
+                icon: const Icon(Icons.contacts_outlined, size: 20),
+                label: Text(s.showPhoneContacts, style: const TextStyle(fontSize: 15)),
+              ),
+            ),
+          )
+        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -130,15 +152,16 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
             ),
           ),
         ],
+        ?phoneButton,
         Expanded(
-          child: people.isEmpty && groups.isEmpty
+          child: people.isEmpty && groups.isEmpty && phone.isEmpty
               ? Center(
                   child: Padding(
                     padding: const EdgeInsets.all(32),
                     child: Text(
                       // Пусто, потому что ничего не нашлось, или потому что контактов ещё нет вовсе.
-                      all.isEmpty ? s.noContacts : s.nothingFound,
-                      key: Key(all.isEmpty ? 'contacts.empty' : 'contacts.notFound'),
+                      all.isEmpty && phoneAll.isEmpty ? s.noContacts : s.nothingFound,
+                      key: Key(all.isEmpty && phoneAll.isEmpty ? 'contacts.empty' : 'contacts.notFound'),
                       textAlign: TextAlign.center,
                       style: TextStyle(color: p.muted, fontSize: 15),
                     ),
@@ -155,6 +178,12 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
                       SectionLabel(s.departments),
                       ListGroup(children: [for (final c in groups) rowOf(c)]),
                     ],
+                    if (phone.isNotEmpty) ...[
+                      SectionLabel(s.fromPhone),
+                      ListGroup(
+                        children: [for (final c in phone) _ContactRow(contact: c, onCall: () => dial(c))],
+                      ),
+                    ],
                   ],
                 ),
         ),
@@ -164,11 +193,13 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
 }
 
 class _ContactRow extends StatelessWidget {
-  const _ContactRow({required this.contact, required this.onCall, required this.onLongPress});
+  const _ContactRow({required this.contact, required this.onCall, this.onLongPress});
 
   final Contact contact;
   final VoidCallback onCall;
-  final VoidCallback onLongPress;
+
+  /// Нет у контактов из телефона: их здесь не изменить.
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {

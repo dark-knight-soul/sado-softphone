@@ -80,6 +80,10 @@ abstract class S {
   String get mic;
   String get keypad;
   String get speaker;
+  String get soundOutput;
+  String get outputEarpiece;
+  String get outputBluetooth;
+  String get outputWired;
   String get hold;
   String get onHold;
   String get inCall;
@@ -153,6 +157,8 @@ abstract class S {
   String get autostartNote;
   String get notifAsk;
   String get notifNote;
+  String get missedCallTitle;
+  String missedCallsTitle(int count);
   String get fullScreenAsk;
   String get fullScreenNote;
   String get tabHome;
@@ -163,6 +169,16 @@ abstract class S {
   String get answerAuto;
   String get appIcon;
 
+  // О приложении и проверка обновлений
+  String get about;
+  String versionLabel(String version);
+  String get checkUpdates;
+  String get updateNote;
+  String get upToDate;
+  String updateAvailable(String version);
+  String get openDownload;
+  String get updateFailed;
+
   // Контакты, перевод, «Не беспокоить»
   String get answerPill;
   String get newContact;
@@ -172,6 +188,9 @@ abstract class S {
   String get delete;
   String get cancel;
   String get noContacts;
+  String get showPhoneContacts;
+  String get fromPhone;
+  String get phoneContactsTitle;
   String get saveToContacts;
   String get transferTitle;
   String get transferHint;
@@ -179,6 +198,9 @@ abstract class S {
   String get dndOn;
   String get dndOff;
   String get dndNote;
+  String get ringtone;
+  String get ringtoneDefault;
+  String get ringVibration;
   String get redialHint;
   String dndStatus(String number);
 
@@ -288,6 +310,14 @@ class _Ru extends S {
   String get keypad => 'Клавиши';
   @override
   String get speaker => 'Динамик';
+  @override
+  String get soundOutput => 'Куда выводить звук';
+  @override
+  String get outputEarpiece => 'Телефон';
+  @override
+  String get outputBluetooth => 'Bluetooth';
+  @override
+  String get outputWired => 'Наушники';
   @override
   String get hold => 'Удержать';
   @override
@@ -416,6 +446,10 @@ class _Ru extends S {
   @override
   String get notifNote => "Без уведомлений входящий звонок не зазвонит и не покажется, пока приложение свёрнуто.";
   @override
+  String get missedCallTitle => "Пропущенный звонок";
+  @override
+  String missedCallsTitle(int count) => "Пропущенные звонки: $count";
+  @override
   String get fullScreenAsk => "Разрешить экран звонка поверх блокировки";
   @override
   String get fullScreenNote => "Без этого на заблокированном телефоне входящий виден только в уведомлении.";
@@ -435,6 +469,23 @@ class _Ru extends S {
   String get appIcon => "Значок на рабочем столе";
 
   @override
+  String get about => "О приложении";
+  @override
+  String versionLabel(String version) => "Версия $version";
+  @override
+  String get checkUpdates => "Проверить обновления";
+  @override
+  String get updateNote => "Проверка обращается к GitHub и выполняется только по нажатию.";
+  @override
+  String get upToDate => "У вас последняя версия";
+  @override
+  String updateAvailable(String version) => "Доступна версия $version";
+  @override
+  String get openDownload => "Открыть страницу загрузки";
+  @override
+  String get updateFailed => "Не удалось проверить. Попробуйте позже.";
+
+  @override
   String get answerPill => "Свайп в стороны";
   @override
   String get newContact => "Новый контакт";
@@ -451,6 +502,12 @@ class _Ru extends S {
   @override
   String get noContacts => "Контактов пока нет";
   @override
+  String get showPhoneContacts => "Показать контакты телефона";
+  @override
+  String get fromPhone => "Из телефона";
+  @override
+  String get phoneContactsTitle => "Контакты телефона";
+  @override
   String get saveToContacts => "Сохранить в контакты";
   @override
   String get transferTitle => "Перевести звонок";
@@ -464,6 +521,12 @@ class _Ru extends S {
   String get dndOff => "Выключено";
   @override
   String get dndNote => "Входящие не звонят, звонящий слышит «занято». Пропущенные видны в истории.";
+  @override
+  String get ringtone => "Мелодия звонка";
+  @override
+  String get ringtoneDefault => "Как в телефоне";
+  @override
+  String get ringVibration => "Вибрация при звонке";
   @override
   String get redialHint => "Нажмите вызов ещё раз, чтобы позвонить";
   @override
@@ -570,6 +633,14 @@ class _Uz extends S {
   String get keypad => 'Klaviatura';
   @override
   String get speaker => 'Dinamik';
+  @override
+  String get soundOutput => 'Ovoz chiqishi';
+  @override
+  String get outputEarpiece => 'Telefon';
+  @override
+  String get outputBluetooth => 'Bluetooth';
+  @override
+  String get outputWired => 'Quloqchin';
   @override
   String get hold => 'Kutish';
   @override
@@ -699,6 +770,10 @@ class _Uz extends S {
   String get notifNote =>
       "Bildirishnomalarsiz ilova yigʻilgan paytda kiruvchi qoʻngʻiroq jiringlamaydi va koʻrinmaydi.";
   @override
+  String get missedCallTitle => "Oʻtkazib yuborilgan qoʻngʻiroq";
+  @override
+  String missedCallsTitle(int count) => "Oʻtkazib yuborilgan qoʻngʻiroqlar: $count";
+  @override
   String get fullScreenAsk => "Qoʻngʻiroq ekranini qulf ustida koʻrsatishga ruxsat berish";
   @override
   String get fullScreenNote => "Busiz qulflangan telefonda kiruvchi qoʻngʻiroq faqat bildirishnomada koʻrinadi.";
@@ -718,6 +793,23 @@ class _Uz extends S {
   String get appIcon => "Ish stolidagi belgi";
 
   @override
+  String get about => "Ilova haqida";
+  @override
+  String versionLabel(String version) => "Versiya $version";
+  @override
+  String get checkUpdates => "Yangilanishlarni tekshirish";
+  @override
+  String get updateNote => "Tekshiruv GitHub orqali va faqat tugma bosilganda bajariladi.";
+  @override
+  String get upToDate => "Sizda eng soʻnggi versiya";
+  @override
+  String updateAvailable(String version) => "$version versiyasi chiqdi";
+  @override
+  String get openDownload => "Yuklab olish sahifasini ochish";
+  @override
+  String get updateFailed => "Tekshirib boʻlmadi. Keyinroq urinib koʻring.";
+
+  @override
   String get answerPill => "Yon tomonga surish";
   @override
   String get newContact => "Yangi kontakt";
@@ -734,6 +826,12 @@ class _Uz extends S {
   @override
   String get noContacts => "Kontaktlar hali yoʻq";
   @override
+  String get showPhoneContacts => "Telefon kontaktlarini koʻrsatish";
+  @override
+  String get fromPhone => "Telefondan";
+  @override
+  String get phoneContactsTitle => "Telefon kontaktlari";
+  @override
   String get saveToContacts => "Kontaktlarga saqlash";
   @override
   String get transferTitle => "Qoʻngʻiroqni oʻtkazish";
@@ -748,6 +846,12 @@ class _Uz extends S {
   @override
   String get dndNote =>
       "Kiruvchi qoʻngʻiroqlar jiringlamaydi, qoʻngʻiroq qiluvchi «band» signalini eshitadi. Javobsizlar tarixda koʻrinadi.";
+  @override
+  String get ringtone => "Qoʻngʻiroq ohangi";
+  @override
+  String get ringtoneDefault => "Telefondagidek";
+  @override
+  String get ringVibration => "Qoʻngʻiroqda tebranish";
   @override
   String get redialHint => "Qoʻngʻiroq qilish uchun yana bir marta bosing";
   @override
@@ -854,6 +958,14 @@ class _En extends S {
   String get keypad => 'Keypad';
   @override
   String get speaker => 'Speaker';
+  @override
+  String get soundOutput => 'Sound output';
+  @override
+  String get outputEarpiece => 'Phone';
+  @override
+  String get outputBluetooth => 'Bluetooth';
+  @override
+  String get outputWired => 'Headphones';
   @override
   String get hold => 'Hold';
   @override
@@ -983,6 +1095,10 @@ class _En extends S {
   String get notifNote =>
       "Without notifications an incoming call will not ring or show up while the app is in the background.";
   @override
+  String get missedCallTitle => "Missed call";
+  @override
+  String missedCallsTitle(int count) => "Missed calls: $count";
+  @override
   String get fullScreenAsk => "Allow the call screen over the lock screen";
   @override
   String get fullScreenNote => "Without this, an incoming call on a locked phone shows only as a notification.";
@@ -1002,6 +1118,23 @@ class _En extends S {
   String get appIcon => "Home screen icon";
 
   @override
+  String get about => "About";
+  @override
+  String versionLabel(String version) => "Version $version";
+  @override
+  String get checkUpdates => "Check for updates";
+  @override
+  String get updateNote => "The check contacts GitHub and runs only when you tap it.";
+  @override
+  String get upToDate => "You have the latest version";
+  @override
+  String updateAvailable(String version) => "Version $version is available";
+  @override
+  String get openDownload => "Open download page";
+  @override
+  String get updateFailed => "Couldn't check. Try again later.";
+
+  @override
   String get answerPill => "Swipe sideways";
   @override
   String get newContact => "New contact";
@@ -1018,6 +1151,12 @@ class _En extends S {
   @override
   String get noContacts => "No contacts yet";
   @override
+  String get showPhoneContacts => "Show phone contacts";
+  @override
+  String get fromPhone => "From phone";
+  @override
+  String get phoneContactsTitle => "Phone contacts";
+  @override
   String get saveToContacts => "Save to contacts";
   @override
   String get transferTitle => "Transfer call";
@@ -1031,6 +1170,12 @@ class _En extends S {
   String get dndOff => "Off";
   @override
   String get dndNote => "Incoming calls don't ring and the caller hears a busy tone. Missed calls stay in Recents.";
+  @override
+  String get ringtone => "Ringtone";
+  @override
+  String get ringtoneDefault => "Phone default";
+  @override
+  String get ringVibration => "Vibrate on ring";
   @override
   String get redialHint => "Tap call again to dial";
   @override

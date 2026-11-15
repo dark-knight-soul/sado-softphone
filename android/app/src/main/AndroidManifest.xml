@@ -19,6 +19,7 @@
     <!-- Входящий звонок: показать на весь экран поверх блокировки, вибрация. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- Попросить снять ограничение батареи, иначе в глубоком сне телефон отключает приложению сеть. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Микрофон нужен, но телефон без него (планшет) тоже подойдёт; камера не используется вовсе. -->
@@ -48,6 +49,21 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- Ссылки tel: и sip: из браузера, мессенджеров и контактов. Окно только подставляет номер
+                 на экране набора, звонок человек начинает сам. Права CALL_PHONE и ACTION_CALL не нужны. -->
+            <intent-filter>
+                <action android:name="android.intent.action.DIAL" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="tel" />
+                <data android:scheme="sip" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tel" />
+                <data android:scheme="sip" />
+            </intent-filter>
         </activity>
         <!-- Значки для рабочего стола. Включён всегда ровно один «псевдоним» главного окна;
              какой именно — выбирается в настройках приложения (SadoEngine.setAppIcon). -->

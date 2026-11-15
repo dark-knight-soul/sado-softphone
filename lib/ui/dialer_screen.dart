@@ -9,6 +9,7 @@ import '../l10n/strings.dart';
 import '../sip/call_engine.dart';
 import '../state/call.dart';
 import '../state/contacts.dart';
+import '../state/dial_request.dart';
 import '../state/session.dart';
 import '../state/settings.dart';
 import '../theme/sado_icons.dart';
@@ -29,6 +30,21 @@ class _DialerScreenState extends ConsumerState<DialerScreen> {
   static const _keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
 
   String _number = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Номер из ссылки tel:/sip: заменяет то, что набрано. Звонок не начинаем — человек нажмёт сам.
+    // fireImmediately: запрос мог прийти раньше, чем экран построился.
+    ref.listenManual(dialRequestProvider, (_, next) {
+      if (next == null) return;
+      setState(() => _number = next.length > _maxLength ? next.substring(0, _maxLength) : next);
+      // Забываем запрос после кадра: оболочка с вкладками тоже его читает, и стирать его посреди рассылки нельзя.
+      Future.microtask(() {
+        if (mounted) ref.read(dialRequestProvider.notifier).clear();
+      });
+    }, fireImmediately: true);
+  }
 
   void _press(String key) {
     if (_number.length >= _maxLength) return;

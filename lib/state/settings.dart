@@ -38,6 +38,7 @@ class Settings {
     required this.iconSet,
     required this.backgroundLink,
     required this.dnd,
+    required this.phoneContacts,
   });
 
   final SadoStyleId styleId;
@@ -54,6 +55,9 @@ class Settings {
   /// «Не беспокоить»: входящие не звонят, звонящий слышит «занято».
   final bool dnd;
 
+  /// Показывать в «Контактах» адресную книгу телефона (читается на телефоне, никуда не копируется).
+  final bool phoneContacts;
+
   /// [lang] передаётся отдельной функцией, потому что его нужно уметь сбрасывать в null.
   Settings copyWith({
     SadoStyleId? styleId,
@@ -63,6 +67,7 @@ class Settings {
     IconSetId? iconSet,
     bool? backgroundLink,
     bool? dnd,
+    bool? phoneContacts,
   }) => Settings(
     styleId: styleId ?? this.styleId,
     themeMode: themeMode ?? this.themeMode,
@@ -71,6 +76,7 @@ class Settings {
     iconSet: iconSet ?? this.iconSet,
     backgroundLink: backgroundLink ?? this.backgroundLink,
     dnd: dnd ?? this.dnd,
+    phoneContacts: phoneContacts ?? this.phoneContacts,
   );
 
   @override
@@ -82,10 +88,11 @@ class Settings {
       other.answerMode == answerMode &&
       other.iconSet == iconSet &&
       other.backgroundLink == backgroundLink &&
-      other.dnd == dnd;
+      other.dnd == dnd &&
+      other.phoneContacts == phoneContacts;
 
   @override
-  int get hashCode => Object.hash(styleId, themeMode, lang, answerMode, iconSet, backgroundLink, dnd);
+  int get hashCode => Object.hash(styleId, themeMode, lang, answerMode, iconSet, backgroundLink, dnd, phoneContacts);
 }
 
 class SettingsController extends Notifier<Settings> {
@@ -96,6 +103,7 @@ class SettingsController extends Notifier<Settings> {
   static const _kIcons = 'iconSet';
   static const _kBackground = 'backgroundLink';
   static const _kDnd = 'dnd';
+  static const _kPhoneContacts = 'phoneContacts';
 
   SharedPreferences get _prefs => ref.read(prefsProvider);
 
@@ -110,6 +118,7 @@ class SettingsController extends Notifier<Settings> {
       iconSet: IconSetId.values.asNameMap()[p.getString(_kIcons)] ?? IconSetId.outlined,
       backgroundLink: p.getBool(_kBackground) ?? true,
       dnd: p.getBool(_kDnd) ?? false,
+      phoneContacts: p.getBool(_kPhoneContacts) ?? false,
     );
   }
 
@@ -145,6 +154,11 @@ class SettingsController extends Notifier<Settings> {
   void setDnd(bool on) {
     state = state.copyWith(dnd: on);
     _prefs.setBool(_kDnd, on);
+  }
+
+  void setPhoneContacts(bool on) {
+    state = state.copyWith(phoneContacts: on);
+    _prefs.setBool(_kPhoneContacts, on);
   }
 
   void setIconSet(IconSetId id) {

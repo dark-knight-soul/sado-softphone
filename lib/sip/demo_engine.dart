@@ -6,7 +6,10 @@ import 'call_engine.dart';
 /// Имитация звонков без АТС: «связь» есть сразу, «собеседник» отвечает через две секунды.
 /// Нужна для демонстрации (сервер `demo`) и для тестов.
 class DemoEngine extends CallEngine {
-  DemoEngine({this.answerAfter = const Duration(seconds: 2)});
+  /// [extraRoutes] — дополнительные устройства звука (гарнитура и т. п.); нужны, чтобы проверить выбор в тестах.
+  DemoEngine({this.answerAfter = const Duration(seconds: 2), List<AudioRoute> extraRoutes = const []}) {
+    routes.value = [const AudioRoute(AudioKind.earpiece), const AudioRoute(AudioKind.speaker), ...extraRoutes];
+  }
 
   final Duration answerAfter;
   Timer? _answerTimer;
@@ -63,6 +66,9 @@ class DemoEngine extends CallEngine {
 
   @override
   void setSpeaker(bool on) => call.value = call.value?.copyWith(speaker: on);
+
+  @override
+  void setRoute(AudioRoute route) => call.value = call.value?.copyWith(route: route.kind);
 
   @override
   void sendDtmf(String tone) {}
