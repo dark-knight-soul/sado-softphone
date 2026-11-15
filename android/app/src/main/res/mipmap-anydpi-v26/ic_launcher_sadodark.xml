@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Значок «sadodark» для Android 8 и новее: система сама обрезает его под форму значков на телефоне. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_bg_sadodark" />
+    <foreground android:drawable="@mipmap/ic_launcher_sadodark_foreground" />
+    <monochrome android:drawable="@mipmap/ic_launcher_sadodark_foreground" />
+</adaptive-icon>

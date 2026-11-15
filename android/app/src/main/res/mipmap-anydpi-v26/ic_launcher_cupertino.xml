@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Значок «cupertino» для Android 8 и новее: система сама обрезает его под форму значков на телефоне. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_bg_cupertino" />
+    <foreground android:drawable="@mipmap/ic_launcher_cupertino_foreground" />
+    <monochrome android:drawable="@mipmap/ic_launcher_cupertino_foreground" />
+</adaptive-icon>
