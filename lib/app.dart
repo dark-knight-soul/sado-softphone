@@ -49,10 +49,18 @@ class RootView extends ConsumerWidget {
     final phase = ref.watch(callProvider.select((c) => c?.phase));
     // Звонок появился или закончился — убираем всё, что открыто поверх: нижние окна (иначе экран звонка
     // оказался бы под ними, а окно перевода пережило бы сам разговор) и клавиатуру телефона.
-    ref.listen(callProvider.select((c) => c != null), (prev, next) {
-      if (prev == next) return;
+    // То же, когда звонки меняются местами (окно перевода иначе перевело бы уже другого собеседника)
+    // и когда во время разговора звонит второй — карточка с «Ответить» не должна оказаться под окном.
+    void closeOverlays() {
       Navigator.of(context).popUntil((route) => route.isFirst);
       FocusManager.instance.primaryFocus?.unfocus();
+    }
+
+    ref.listen(callProvider.select((c) => c?.id), (prev, next) {
+      if (prev != next) closeOverlays();
+    });
+    ref.listen(otherCallProvider.select((c) => c?.phase == CallPhase.incoming), (prev, next) {
+      if (next && prev != next) closeOverlays();
     });
     ref.listen(callFailureProvider, (prev, next) {
       final failure = next.value;
@@ -67,6 +75,7 @@ class RootView extends ConsumerWidget {
         CallFailure.micDenied => s.failMic,
         CallFailure.offline => s.failOffline,
         CallFailure.other => s.failOther,
+        CallFailure.transfer => s.failConnect,
       };
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()

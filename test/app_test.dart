@@ -47,6 +47,16 @@ class RecordingKeeper extends CallKeeper {
     return number;
   }
 
+  /// Ссылка настройки, «пришедшая» до запуска; задаётся в [pendingSetupOnStart] до pumpApp.
+  String? pendingSetup = pendingSetupOnStart;
+
+  @override
+  Future<String?> takePendingSetup() async {
+    final link = pendingSetup;
+    pendingSetup = null;
+    return link;
+  }
+
   @override
   Future<void> standby({required String title, required String text}) async => log.add('standby: $text');
 
@@ -109,6 +119,9 @@ class RecordingKeeper extends CallKeeper {
 
 /// Что новый [RecordingKeeper] вернёт как «номер из ссылки при запуске» (тесты открытия ссылок).
 String? pendingDialOnStart;
+
+/// Что новый [RecordingKeeper] вернёт как «ссылку настройки при запуске» (тесты входа по ссылке).
+String? pendingSetupOnStart;
 
 /// Сторож последнего запущенного приложения — чтобы тест мог посмотреть его записи.
 late RecordingKeeper keeper;

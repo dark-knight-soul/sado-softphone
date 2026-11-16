@@ -7,6 +7,7 @@ import '../platform/call_keeper.dart';
 import '../sip/call_engine.dart';
 import 'call.dart';
 import 'dial_request.dart';
+import 'setup_link.dart';
 import 'session.dart';
 import 'settings.dart';
 
@@ -100,6 +101,11 @@ final presenceProvider = Provider<void>((ref) {
   // Ссылка могла открыть приложение при холодном запуске, пока событие некуда было доставить.
   keeper.takePendingDial().then((number) {
     if (number != null && ref.mounted) ref.read(dialRequestProvider.notifier).request(number);
+  });
+  // Ссылка настройки (QR-код от администратора) — тем же путём: событием или из очереди при запуске.
+  keeper.onSetupRequest = (link) => ref.read(setupRequestProvider.notifier).request(link);
+  keeper.takePendingSetup().then((link) {
+    if (link != null && ref.mounted) ref.read(setupRequestProvider.notifier).request(link);
   });
 
   ref.listen(callProvider, (_, _) => presence.sync());

@@ -129,11 +129,14 @@ class _Caller extends StatelessWidget {
 
 /// Шапка разговора в духе iOS: слева маленький аватар, рядом — таймер и под ним крупное имя.
 class _CallerLeft extends StatelessWidget {
-  const _CallerLeft({required this.call, required this.palette, required this.status});
+  const _CallerLeft({required this.call, required this.palette, required this.status, this.avatar = true});
 
   final CallInfo call;
   final CallPalette palette;
   final Widget status;
+
+  /// Показывать ли аватар слева (на маленьком экране его убираем первым, чтобы всё поместилось).
+  final bool avatar;
 
   @override
   Widget build(BuildContext context) {
@@ -142,8 +145,10 @@ class _CallerLeft extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
         children: [
-          Avatar(name: call.name, size: 60, background: palette.surface, foreground: palette.text),
-          const SizedBox(width: 14),
+          if (avatar) ...[
+            Avatar(name: call.name, size: 60, background: palette.surface, foreground: palette.text),
+            const SizedBox(width: 14),
+          ],
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -559,19 +564,33 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   bool _keypad = false;
   String _tones = '';
 
+  /// К какому звонку относятся набранные [_tones]: после переключения на второй звонок строка начинается заново.
+  int? _tonesFor;
+
   /// Раскрыт ли второй ряд кнопок под «Ещё» (раскладка «Материала»).
   bool _more = false;
 
   /// Окно «Перевести звонок»: номер набирается клавишами приложения, а не клавиатурой телефона.
   Future<void> _transfer() async {
     final s = S.of(context);
-    final target = await showModalBottomSheet<String>(
+    // «Сначала поговорить» — только при одном звонке: звонков не бывает больше двух.
+    final canConsult = ref.read(otherCallProvider) == null;
+    final picked = await showModalBottomSheet<_TransferChoice>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => _TransferSheet(title: s.transferTitle, hint: s.transferHint, action: s.transfer),
+      builder: (context) => _TransferSheet(
+        title: s.transferTitle,
+        hint: s.transferHint,
+        action: s.transfer,
+        consultAction: canConsult ? s.talkFirst : null,
+      ),
     );
-    if (target == null || target.isEmpty || !mounted) return;
-    ref.read(callProvider.notifier).transfer(target);
+    if (picked == null || picked.number.isEmpty || !mounted) return;
+    // Выбор сделан — второй ряд под «Ещё» (откуда открывали перевод) сворачиваем: при консультации появится
+    // строка удержания, и на маленьком экране ей нужно это место.
+    setState(() => _more = false);
+    final controller = ref.read(callProvider.notifier);
+    picked.consult ? controller.consult(picked.number) : controller.transfer(picked.number);
   }
 
   /// Кнопка «Динамик»: с одними трубкой и динамиком просто переключает, с гарнитурой — спрашивает, куда выводить звук.
@@ -603,6 +622,15 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final unified = layout == CallLayout.material;
     final active = call.phase == CallPhase.active;
     final screen = MediaQuery.sizeOf(context);
+    // Карточка второго звонка или строка «На удержании» — под шапкой. На невысоком экране ради неё
+    // первым делом убираем аватар (кнопки, и особенно «Завершить», должны остаться на экране).
+    final second = _SecondCall(palette: c);
+    final hasOther = ref.watch(otherCallProvider.select((o) => o != null));
+    final short = screen.height - MediaQuery.paddingOf(context).vertical < 640;
+    final hideAvatar = _keypad || (hasOther && short);
+    // На невысоком экране сжимаем просветы между частями экрана — и при одном звонке тоже: иначе на маленьком
+    // телефоне с тремя кнопками навигации «Завершить» уходила под нижнюю панель.
+    final tight = short;
     final statusStyle = TextStyle(
       fontSize: cupertino ? 16 : 17,
       color: c.muted,
@@ -669,10 +697,14 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     );
     final pad = _DtmfPad(
       palette: c,
-      tones: _tones,
+      tones: _tonesFor == call.id ? _tones : '',
       onKey: (k) {
         controller.sendDtmf(k);
-        setState(() => _tones += k);
+        setState(() {
+          if (_tonesFor != call.id) _tones = '';
+          _tonesFor = call.id;
+          _tones += k;
+        });
       },
       onClose: () => setState(() => _keypad = false),
     );
@@ -719,7 +751,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           const SizedBox(height: 14),
           secure,
           const SizedBox(height: 14),
-          _CallerLeft(call: call, palette: c, status: status),
+          _CallerLeft(call: call, palette: c, status: status, avatar: !(hasOther && (short || _keypad))),
+          second,
           if (_keypad) ...[
             // FittedBox: если клавишам всё же не хватает высоты, они уменьшаются, а не вылезают за экран.
             Expanded(
@@ -758,10 +791,17 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       // В духе Material Design: таймер и имя сверху, крупный аватар посередине, кнопки — на нижнем «листе».
       CallLayout.material => Column(
         children: [
-          const SizedBox(height: 14),
-          secure,
-          SizedBox(height: _keypad ? 2 : 10),
+          // При двух звонках на коротком экране строка «Защищённый звонок» уступает место строке удержания
+          // (в ней две кнопки под надписью): иначе нижний лист с «Завершить» не помещался.
+          if (hasOther && short)
+            const SizedBox(height: 6)
+          else ...[
+            const SizedBox(height: 14),
+            secure,
+            SizedBox(height: _keypad ? 2 : 10),
+          ],
           _Caller(call: call, palette: c, status: status, avatar: 0, large: true, statusAbove: true),
+          second,
           Expanded(
             child: _keypad
                 ? FittedBox(fit: BoxFit.scaleDown, child: pad)
@@ -825,11 +865,12 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       ),
       CallLayout.standard => Column(
         children: [
-          const SizedBox(height: 18),
+          SizedBox(height: tight ? 8 : 18),
           secure,
-          SizedBox(height: _keypad ? 8 : 24),
+          SizedBox(height: _keypad || tight ? 8 : 24),
           // С открытыми клавишами аватар прячем, иначе на маленьком экране всё не поместится.
-          _Caller(call: call, palette: c, status: status, avatar: _keypad ? 0 : 92),
+          _Caller(call: call, palette: c, status: status, avatar: hideAvatar ? 0 : (short ? 64 : 92)),
+          second,
           if (_keypad)
             Expanded(
               child: FittedBox(fit: BoxFit.scaleDown, child: pad),
@@ -842,7 +883,11 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   row([mic, keypad, speaker]),
-                  const SizedBox(height: 22),
+                  // При двух звонках строка удержания выше (две кнопки под надписью) — на коротком экране
+                  // отдаём ей часть просвета между рядами, чтобы «Завершить» осталась над нижней полосой.
+                  // 11, а не 12: с одним звонком на экране 320×568 с полосами системы в стиле с крупными
+                  // кнопками всё не помещалось на 0,44 пикселя (видно, когда открывали окно перевода).
+                  SizedBox(height: tight ? (hasOther ? 6 : 11) : 22),
                   row([hold, transfer]),
                 ],
               ),
@@ -850,7 +895,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             const Spacer(),
           ],
           Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: end),
-          const SizedBox(height: 30),
+          SizedBox(height: tight ? 16 : 30),
         ],
       ),
     };
@@ -859,13 +904,251 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   }
 }
 
+/// Второй звонок под шапкой разговора: карточка «Второй звонок» с «Ответить» и «Отклонить»,
+/// пока он звонит, или строка «На удержании: …» с «Переключить», когда звонков два. Нет второго — пусто.
+class _SecondCall extends ConsumerWidget {
+  const _SecondCall({required this.palette});
+
+  final CallPalette palette;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final other = ref.watch(otherCallProvider);
+    if (other == null) return const SizedBox.shrink();
+    final controller = ref.read(callProvider.notifier);
+    // Соединён ли текущий разговор: пока вызов «Сначала поговорить» ещё звонит, переключать и соединять некого.
+    final connected = ref.watch(callProvider.select((c) => c?.phase == CallPhase.active && c?.since != null));
+    // Ключ — номер звонка: новый второй звонок — новая карточка (и новый короткий отклик вибрацией).
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: other.phase == CallPhase.incoming
+          ? _WaitingCard(
+              key: ValueKey(other.id),
+              call: other,
+              palette: palette,
+              onAccept: controller.acceptOther,
+              onDecline: controller.rejectOther,
+            )
+          : _HeldStrip(
+              call: other,
+              palette: palette,
+              // «Переключить» и «Соединить» — только когда текущий разговор соединён: пока вызов «Сначала поговорить» ещё
+              // звонит, соединять некого.
+              onSwap: connected ? controller.swap : null,
+              onConnect: connected ? controller.connectCalls : null,
+            ),
+    );
+  }
+}
+
+/// Карточка второго звонка, который звонит во время разговора. Мелодии нет — разговор не должен
+/// прерываться, — только один короткий отклик вибрацией, когда карточка появилась.
+class _WaitingCard extends StatefulWidget {
+  const _WaitingCard({
+    super.key,
+    required this.call,
+    required this.palette,
+    required this.onAccept,
+    required this.onDecline,
+  });
+
+  final CallInfo call;
+  final CallPalette palette;
+  final VoidCallback onAccept;
+  final VoidCallback onDecline;
+
+  @override
+  State<_WaitingCard> createState() => _WaitingCardState();
+}
+
+class _WaitingCardState extends State<_WaitingCard> {
+  @override
+  void initState() {
+    super.initState();
+    HapticFeedback.mediumImpact();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final ic = SadoIcons.of(context);
+    final p = widget.palette;
+    return Container(
+      key: const Key('call.waiting'),
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+      decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(18)),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(s.secondCall, maxLines: 1, style: TextStyle(fontSize: 12.5, color: p.muted)),
+                const SizedBox(height: 2),
+                Text(
+                  s.caller(widget.call.name, widget.call.number),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: p.text),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _RoundButton(
+            key: const Key('call.waiting.decline'),
+            icon: ic.callEnd,
+            label: s.decline,
+            color: p.hangup,
+            onColor: p.onHangup,
+            onTap: widget.onDecline,
+          ),
+          const SizedBox(width: 10),
+          _RoundButton(
+            key: const Key('call.waiting.accept'),
+            icon: ic.call,
+            label: s.answerVerb,
+            color: p.go,
+            onColor: p.onGo,
+            onTap: widget.onAccept,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Строка «На удержании: …» с кнопками «Переключить» и «Соединить» — когда идут два разговора.
+/// Кнопки стоят под надписью: в одну строку с ней на узком экране не помещается имя.
+class _HeldStrip extends StatelessWidget {
+  const _HeldStrip({required this.call, required this.palette, required this.onSwap, required this.onConnect});
+
+  final CallInfo call;
+  final CallPalette palette;
+
+  /// null — кнопка неактивна (текущий вызов ещё не соединился): движок такое нажатие всё равно бы пропустил,
+  /// а «живая» кнопка, которая ничего не делает, сбивает с толку.
+  final VoidCallback? onSwap;
+
+  /// null — «Соединить» неактивна (текущий вызов ещё не соединился).
+  final VoidCallback? onConnect;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final ic = SadoIcons.of(context);
+    final p = palette;
+    final buttonStyle = TextButton.styleFrom(
+      foregroundColor: p.accent,
+      disabledForegroundColor: p.muted.withValues(alpha: 0.5),
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+    );
+    return Container(
+      key: const Key('call.other'),
+      padding: const EdgeInsets.fromLTRB(14, 6, 4, 0),
+      decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(18)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(ic.hold, size: 18, color: p.muted),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${s.onHold}: ${s.caller(call.name, call.number)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 14, color: p.text),
+                ),
+              ),
+            ],
+          ),
+          // Две кнопки; если подписи всё же не влезают (крупный шрифт), уменьшаются, а не вылезают за край.
+          Align(
+            alignment: Alignment.centerRight,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton.icon(
+                    key: const Key('call.swap'),
+                    onPressed: onSwap,
+                    style: buttonStyle,
+                    icon: const Icon(Icons.swap_calls, size: 20),
+                    label: Text(s.swapCalls, maxLines: 1),
+                  ),
+                  TextButton.icon(
+                    key: const Key('call.connect'),
+                    onPressed: onConnect,
+                    style: buttonStyle,
+                    icon: const Icon(Icons.call_merge, size: 20),
+                    label: Text(s.connectCalls, maxLines: 1),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Небольшая круглая цветная кнопка со значком (в карточке второго звонка); подпись — для озвучки и подсказки.
+class _RoundButton extends StatelessWidget {
+  const _RoundButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onColor,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Color onColor;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: label,
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: Material(
+          color: color,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Icon(icon, size: 22, color: onColor),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Что выбрали в окне перевода: номер и как переводить — сразу или сначала поговорив ([consult]).
+typedef _TransferChoice = ({String number, bool consult});
+
 /// Нижнее окно для перевода звонка: номер набирается клавишами приложения — такими же, как на экране набора.
 class _TransferSheet extends StatefulWidget {
-  const _TransferSheet({required this.title, required this.hint, required this.action});
+  const _TransferSheet({required this.title, required this.hint, required this.action, this.consultAction});
 
   final String title;
   final String hint;
   final String action;
+
+  /// Подпись второй кнопки — «Сначала поговорить» (перевод с консультацией); null — кнопки нет.
+  final String? consultAction;
 
   @override
   State<_TransferSheet> createState() => _TransferSheetState();
@@ -888,7 +1171,8 @@ class _TransferSheetState extends State<_TransferSheet> {
     setState(() => _number = _number.substring(0, _number.length - 1));
   }
 
-  void _submit() => Navigator.of(context).pop(_number);
+  void _submit({bool consult = false}) =>
+      Navigator.of(context).pop<_TransferChoice>((number: _number, consult: consult));
 
   @override
   Widget build(BuildContext context) {
@@ -898,9 +1182,13 @@ class _TransferSheetState extends State<_TransferSheet> {
     final screen = MediaQuery.sizeOf(context);
     // Клавиши подгоняем и под ширину окна, и под высоту экрана (окно не должно закрывать весь экран).
     final byWidth = (screen.width - 40) / (3 * DialKey.widthFor(style, 1) + 2 * style.keyGap);
-    final byHeight = (screen.height * 0.42) / (4 * DialKey.heightFor(style, 1) + 0.6);
+    // Высоту считаем без строки состояния и нижней полосы: на маленьком телефоне с тремя кнопками внизу
+    // окно иначе на долю пикселя не помещалось.
+    final usable = screen.height - MediaQuery.paddingOf(context).vertical;
+    final byHeight = (usable * 0.42) / (4 * DialKey.heightFor(style, 1) + 0.6);
     final keySize = math.min(byWidth, byHeight).clamp(40.0, 68.0);
     final empty = _number.isEmpty;
+    final consult = widget.consultAction;
 
     return SafeArea(
       child: Padding(
@@ -971,10 +1259,29 @@ class _TransferSheetState extends State<_TransferSheet> {
                 ),
               ),
             const SizedBox(height: 6),
-            FilledButton(
-              key: const Key('transfer.submit'),
-              onPressed: empty ? null : _submit,
-              child: Text(widget.action),
+            // Две кнопки рядом: «Сначала поговорить» (с консультацией) и «Перевести» (сразу).
+            // В одну строку, чтобы окно не стало выше; длинная подпись на узком экране уменьшается.
+            Row(
+              children: [
+                if (consult != null) ...[
+                  Expanded(
+                    child: OutlinedButton(
+                      key: const Key('transfer.consult'),
+                      onPressed: empty ? null : () => _submit(consult: true),
+                      style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+                      child: FittedBox(fit: BoxFit.scaleDown, child: Text(consult, maxLines: 1)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: FilledButton(
+                    key: const Key('transfer.submit'),
+                    onPressed: empty ? null : _submit,
+                    child: FittedBox(fit: BoxFit.scaleDown, child: Text(widget.action, maxLines: 1)),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

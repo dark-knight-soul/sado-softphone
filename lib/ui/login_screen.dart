@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import '../l10n/strings.dart';
 import '../sip/call_engine.dart';
 import '../state/session.dart';
+import '../state/setup_link.dart';
 import '../theme/sado_icons.dart';
 import '../theme/sado_style.dart';
 
@@ -23,6 +24,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _hidePassword = true;
   bool _busy = false;
   LinkError? _error;
+
+  /// Поля заполнены ссылкой настройки — над кнопкой просим проверить адрес сервера.
+  bool _fromLink = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Ссылка настройки (QR-код) заполняет форму, но не входит: «Войти» человек нажимает сам.
+    // fireImmediately: ссылка могла прийти раньше, чем экран построился.
+    ref.listenManual(setupRequestProvider, (_, next) {
+      if (next == null) return;
+      _applyLink(next);
+      // Забываем запрос (и пароль в нём) после кадра: стирать состояние посреди рассылки нельзя.
+      Future.microtask(() {
+        if (mounted) ref.read(setupRequestProvider.notifier).clear();
+      });
+    }, fireImmediately: true);
+  }
+
+  /// Переносит данные ссылки в поля. Пароль после этого хранится только в поле пароля.
+  void _applyLink(SetupLink link) {
+    if (_busy) return; // идёт вход — не подменяем данные у него под ногами
+    _server.text = link.server;
+    _number.text = link.number;
+    _password.text = link.password ?? '';
+    setState(() {
+      _fromLink = true;
+      _error = null;
+    });
+  }
+
+  /// Запасной путь: камера только скопировала текст QR-кода — берём ссылку из буфера обмена.
+  Future<void> _paste() async {
+    String? text;
+    try {
+      text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
+    } catch (_) {
+      text = null; // буфер недоступен — то же, что в нём нет ссылки
+    }
+    if (!mounted) return;
+    final link = text == null ? null : parseSetupLink(text);
+    if (link == null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(S.of(context).noSetupInClipboard)));
+      return;
+    }
+    _applyLink(link);
+  }
 
   @override
   void dispose() {
@@ -157,6 +207,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         style: TextStyle(fontSize: 14, color: p.danger),
                       ),
                     ],
+                    if (_fromLink) ...[
+                      const SizedBox(height: 14),
+                      Text(
+                        s.setupFilled,
+                        key: const Key('login.fromLink'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, height: 1.35, color: p.muted),
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     FilledButton(
                       key: const Key('login.submit'),
@@ -165,9 +224,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 8),
                     TextButton.icon(
-                      onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.soon))),
+                      // Своего сканера в приложении нет: QR-код читает обычная камера телефона и открывает SADO по ссылке.
+                      onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.qrHint))),
                       icon: Icon(SadoIcons.of(context).qr),
                       label: Text(s.signInQr),
+                    ),
+                    TextButton.icon(
+                      key: const Key('login.paste'),
+                      onPressed: _busy ? null : _paste,
+                      icon: const Icon(Icons.content_paste_rounded),
+                      label: Text(s.pasteSetup),
                     ),
                     TextButton(
                       key: const Key('login.demo'),

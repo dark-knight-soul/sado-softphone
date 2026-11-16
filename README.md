@@ -42,7 +42,8 @@ Wi-Fi or mobile data, with no SIM card involved.
 **Calls**
 - Outgoing and incoming calls, call history, missed calls
 - Hold, mute, speakerphone, in-call keypad (DTMF, RFC 2833)
-- Blind call transfer
+- Call transfer: immediate, or attended — talk to the colleague first, then connect the two
+- Call waiting: answer a second call during a conversation and switch between the two
 - Do Not Disturb (callers hear “busy”), silence the ringer for a single call
 - Redial: the call button on an empty field brings back the last number
 - Choose where the sound goes: earpiece, speaker, Bluetooth headset or wired headphones
@@ -94,11 +95,33 @@ Wi-Fi or mobile data, with no SIM card involved.
 
 1. Download the latest `.apk` from the [Releases](../../releases) page.
 2. Open it on the phone and allow installation from this source.
-3. Enter your server, extension number and password.
+3. Enter your server, extension number and password — or open a [setup link](#setup-link-for-administrators)
+   from your administrator.
 
 For reliable incoming calls allow the app to run in the background: **More → Background calls**
 has shortcuts to the right system screens (battery restriction; “autostart” on Xiaomi, Samsung, Huawei,
 Oppo, Vivo and others).
+
+## Setup link for administrators
+
+Typing a server address and a password on a phone is the hardest part of setup. Give users a link instead —
+usually as a QR code (any QR generator will do). Scanned with the phone's ordinary camera, it opens SADO with the
+sign-in form filled in:
+
+```
+sado://login?server=pbx.example.com%3A8089%2Fws&number=1003&password=use-a-long-random-password
+```
+
+| Parameter | Required | Value |
+|---|---|---|
+| `server` | yes | Host name (optionally with port and path) or a full `wss://…` / `ws://…` address |
+| `number` | yes | Extension number |
+| `password` | no | If omitted, the user types it |
+
+Values must be URL-encoded. The link only fills in the form — the user still presses **Sign in**, so a link
+from a stranger cannot silently register the phone somewhere else. If the camera app merely copies the text,
+use **Paste setup link** on the sign-in screen. Remember that a QR code with a password in it is as sensitive
+as the password itself.
 
 ## What your PBX needs
 
@@ -179,8 +202,10 @@ Found a vulnerability? See [SECURITY.md](SECURITY.md).
 - Android only. The Flutter code also builds for the web (preview) — iOS has not been set up.
 - No push notifications: the app keeps a light background connection to the PBX instead, so it needs
   permission to run in the background.
-- One call at a time: a second incoming call gets “busy”.
-- No video, conference calls, attended transfer or call recording yet.
+- Two calls at most: a third incoming call gets “busy”.
+- No video, conference calls or call recording yet.
+- Call waiting and attended transfer are new in 1.2.0 and have been exercised only against the built-in test
+  engine so far; behaviour with a particular PBX may need fixes — please report.
 - Contacts are local; there is no directory sync with the PBX.
 - Tested on a Xiaomi phone (HyperOS, Android 17). The background-permission shortcuts for other brands
   are implemented but have not been verified on real devices.

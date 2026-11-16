@@ -38,6 +38,12 @@ abstract class CallKeeper {
   /// Номер из ссылки, пришедшей, пока приложение запускалось. Возвращает его один раз и забывает.
   Future<String?> takePendingDial() async => null;
 
+  /// Открыта ссылка настройки sado://login?… — передаётся как есть, разбирает её parseSetupLink.
+  ValueChanged<String>? onSetupRequest;
+
+  /// Ссылка настройки, пришедшая, пока приложение запускалось. Возвращает её один раз и забывает.
+  Future<String?> takePendingSetup() async => null;
+
   /// Убирает уведомление и останавливает службу.
   Future<void> hide();
 
@@ -144,6 +150,11 @@ class AndroidCallKeeper extends CallKeeper {
           if (number is String) onDialRequest?.call(number);
           // Номер уже доставлен событием — убираем его из очереди, чтобы он не всплыл при следующем запуске.
           unawaited(takePendingDial());
+        case 'setupRequest':
+          final link = call.arguments;
+          if (link is String) onSetupRequest?.call(link);
+          // Так же: ссылка доставлена, в очереди её держать незачем (в ней может быть пароль).
+          unawaited(takePendingSetup());
       }
     });
   }
@@ -187,6 +198,9 @@ class AndroidCallKeeper extends CallKeeper {
 
   @override
   Future<String?> takePendingDial() => _invoke<String>('takePendingDial');
+
+  @override
+  Future<String?> takePendingSetup() => _invoke<String>('takePendingSetup');
 
   @override
   Future<void> hide() => _invoke<void>('hide');

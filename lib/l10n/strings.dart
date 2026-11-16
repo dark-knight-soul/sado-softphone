@@ -35,6 +35,7 @@ abstract class S {
   String get password;
   String get signIn;
   String get signInQr;
+  String get qrHint;
   String get soon;
   String get fieldRequired;
 
@@ -86,6 +87,21 @@ abstract class S {
   String get outputWired;
   String get hold;
   String get onHold;
+
+  /// Подпись карточки второго звонка, который звонит во время разговора.
+  String get secondCall;
+
+  /// Кнопка «поменять местами» текущий разговор и разговор на удержании.
+  String get swapCalls;
+
+  /// Перевод с консультацией: кнопка в окне перевода «сначала поговорить с тем, кому переводим».
+  String get talkFirst;
+
+  /// Кнопка «соединить» текущего собеседника с удержанным (и уйти из разговора).
+  String get connectCalls;
+
+  /// АТС не соединила двух собеседников.
+  String get failConnect;
   String get inCall;
   String get transfer;
   String get addCall;
@@ -109,6 +125,11 @@ abstract class S {
   // Вход: ход и ошибки
   String get tryDemo;
   String get insecureServer;
+  // Ссылка настройки (QR-код от администратора)
+  String get setupFilled;
+  String get setupSignedIn;
+  String get pasteSetup;
+  String get noSetupInClipboard;
   String get signingIn;
   String get errAuth;
   String get errNetwork;
@@ -236,6 +257,9 @@ class _Ru extends S {
   @override
   String get signInQr => 'Войти по QR-коду';
   @override
+  String get qrHint =>
+      "Наведите камеру телефона на QR-код от администратора — SADO откроется с заполненной формой входа.";
+  @override
   String get soon => 'Скоро появится';
   @override
   String get fieldRequired => 'Заполните поле';
@@ -323,6 +347,16 @@ class _Ru extends S {
   @override
   String get onHold => 'На удержании';
   @override
+  String get secondCall => 'Второй звонок';
+  @override
+  String get swapCalls => 'Переключить';
+  @override
+  String get talkFirst => 'Сначала поговорить';
+  @override
+  String get connectCalls => 'Соединить';
+  @override
+  String get failConnect => 'Не удалось соединить';
+  @override
   String get inCall => 'Идёт разговор';
   @override
   String get transfer => 'Перевести';
@@ -364,6 +398,14 @@ class _Ru extends S {
   @override
   String get insecureServer =>
       "Адрес ws:// не шифруется: в сети видно, кто кому звонит, а пароль можно подобрать. Если сервер умеет, используйте wss://.";
+  @override
+  String get setupFilled => 'Данные получены по ссылке. Проверьте адрес сервера и нажмите «Войти».';
+  @override
+  String get setupSignedIn => 'Вы уже вошли. Чтобы применить ссылку, сначала выйдите из учётной записи.';
+  @override
+  String get pasteSetup => 'Вставить ссылку настройки';
+  @override
+  String get noSetupInClipboard => 'В буфере обмена нет ссылки настройки';
   @override
   String get signingIn => 'Подключение…';
   @override
@@ -559,6 +601,9 @@ class _Uz extends S {
   @override
   String get signInQr => 'QR-kod orqali kirish';
   @override
+  String get qrHint =>
+      "Telefon kamerasini administrator bergan QR-kodga qarating — SADO kirish shakli toʻldirilgan holda ochiladi.";
+  @override
   String get soon => 'Tez orada';
   @override
   String get fieldRequired => 'Maydonni toʻldiring';
@@ -646,6 +691,16 @@ class _Uz extends S {
   @override
   String get onHold => 'Kutish rejimida';
   @override
+  String get secondCall => 'Ikkinchi qoʻngʻiroq';
+  @override
+  String get swapCalls => 'Almashtirish';
+  @override
+  String get talkFirst => 'Avval gaplashish';
+  @override
+  String get connectCalls => 'Ulash';
+  @override
+  String get failConnect => 'Ulab boʻlmadi';
+  @override
   String get inCall => 'Suhbat davom etmoqda';
   @override
   String get transfer => 'Oʻtkazish';
@@ -687,6 +742,15 @@ class _Uz extends S {
   @override
   String get insecureServer =>
       "ws:// manzili shifrlanmaydi: tarmoqda kim kimga qoʻngʻiroq qilayotgani koʻrinadi, parolni esa tanlab topish mumkin. Server qoʻllasa, wss:// dan foydalaning.";
+  @override
+  String get setupFilled =>
+      'Maʼlumotlar havola orqali olindi. Server manzilini tekshiring va «Kirish» tugmasini bosing.';
+  @override
+  String get setupSignedIn => 'Siz allaqachon kirgansiz. Havolani qoʻllash uchun avval hisobdan chiqing.';
+  @override
+  String get pasteSetup => 'Sozlash havolasini qoʻyish';
+  @override
+  String get noSetupInClipboard => 'Buferda sozlash havolasi yoʻq';
   @override
   String get signingIn => 'Ulanmoqda…';
   @override
@@ -884,6 +948,9 @@ class _En extends S {
   @override
   String get signInQr => 'Sign in with QR code';
   @override
+  String get qrHint =>
+      "Point the phone's camera at the QR code from your administrator — SADO will open with the sign-in form filled in.";
+  @override
   String get soon => 'Coming soon';
   @override
   String get fieldRequired => 'Fill in this field';
@@ -971,6 +1038,16 @@ class _En extends S {
   @override
   String get onHold => 'On hold';
   @override
+  String get secondCall => 'Second call';
+  @override
+  String get swapCalls => 'Swap';
+  @override
+  String get talkFirst => 'Talk first';
+  @override
+  String get connectCalls => 'Connect';
+  @override
+  String get failConnect => 'Could not connect the calls';
+  @override
   String get inCall => 'Call in progress';
   @override
   String get transfer => 'Transfer';
@@ -1012,6 +1089,14 @@ class _En extends S {
   @override
   String get insecureServer =>
       "A ws:// address is not encrypted: others on the network can see who calls whom and can try to guess the password. Use wss:// if your server supports it.";
+  @override
+  String get setupFilled => 'Details received from a link. Check the server address and tap “Sign in”.';
+  @override
+  String get setupSignedIn => "You're already signed in. To use the link, sign out first.";
+  @override
+  String get pasteSetup => 'Paste setup link';
+  @override
+  String get noSetupInClipboard => 'No setup link in the clipboard';
   @override
   String get signingIn => 'Connecting…';
   @override

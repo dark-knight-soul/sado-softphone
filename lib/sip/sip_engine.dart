@@ -4,6 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'package:logger/logger.dart';
 import 'package:sip_ua/sip_ua.dart' as sip;
+// События хода перевода (ответы АТС на REFER) пакет наружу не отдаёт, а без них не узнать, соединила ли АТС
+// собеседников. Версия sip_ua закреплена в pubspec.lock; при её обновлении этот импорт нужно проверить.
+// ignore: implementation_imports
+import 'package:sip_ua/src/event_manager/refer_events.dart' as refer;
 
 import '../state/account.dart';
 import 'call_engine.dart';
@@ -37,13 +41,20 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   );
   Account? _account;
 
-  /// Мы сейчас сами снимаем удержание (см. обработку UNHOLD).
-  bool _unholding = false;
+  /// Какой звонок мы сейчас сами снимаем с удержания (id звонка sip_ua; см. обработку UNHOLD).
+  String? _unholding;
   bool _keepTrying = false;
   bool _started = false;
 
   /// Сколько начатых вызовов человек отменил раньше, чем sip_ua успела их создать (см. CALL_INITIATION).
   int _cancelledDials = 0;
+
+  /// Сколько ждать от АТС итога перевода с консультацией. Не дождались — считаем, что не вышло, звонки не трогаем.
+  static const _connectCallsTimeout = Duration(seconds: 15);
+
+  /// Идёт перевод с консультацией (REFER отправлен, ждём итога от АТС); таймер — предел ожидания.
+  Timer? _connectingTimer;
+  bool get _connecting => _connectingTimer != null;
 
   /// Повтор регистрации после сбоя: sip_ua сама её не повторяет, пока соединение с сервером цело.
   Timer? _retryTimer;
@@ -53,7 +64,14 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   Completer<LinkStatus>? _firstResult;
   Timer? _connectTimer;
 
+  /// Текущий звонок (его показывает [call]).
   sip.Call? _current;
+
+  /// Второй звонок: ожидает ответа или на удержании (его показывает [other]).
+  sip.Call? _other;
+
+  /// Звук собеседника каждого звонка (id звонка → поток) — чтобы в браузере переключать звук при смене звонков.
+  final Map<String?, rtc.MediaStream> _remoteStreams = {};
 
   // В браузере звук собеседника сам не заиграет — его нужно отдать «проигрывателю».
   // На телефоне WebRTC играет звук сам, проигрыватель там не создаём.
@@ -172,12 +190,11 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   void callStateChanged(sip.Call sipCall, sip.CallState state) {
     switch (state.state) {
       case sip.CallStateEnum.CALL_INITIATION:
-        if (_current != null && _current!.id != sipCall.id) {
-          // Второй звонок во время разговора пока не поддерживаем — отвечаем «занято».
-          sipCall.hangup(<String, dynamic>{'status_code': 486});
-          return;
-        }
-        if (sipCall.direction == sip.Direction.outgoing && _cancelledDials > 0) {
+        if (_isCurrent(sipCall) || _isOther(sipCall)) return;
+        final incoming = sipCall.direction == sip.Direction.incoming;
+        // Эта проверка стоит первой: отменённый вызов нужно снять и «списать» со счёта, даже если за это время
+        // успел прийти другой звонок, — иначе следующий настоящий вызов был бы отменён вместо него.
+        if (!incoming && _cancelledDials > 0) {
           // Человек нажал «Завершить» раньше, чем библиотека успела создать вызов. Отменяем его здесь,
           // иначе у собеседника зазвонил бы телефон, а у нас не было бы ни экрана, ни уведомления.
           _cancelledDials--;
@@ -188,58 +205,76 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
           }
           return;
         }
-        _current = sipCall;
-        if (sipCall.direction == sip.Direction.incoming) {
-          // Звонящий без номера приходит как «anonymous» — это не имя и не номер, показываем «Неизвестный номер».
-          final raw = sipCall.remote_identity ?? '';
-          final number = raw.toLowerCase() == 'anonymous' ? '' : raw;
-          final rawName = sipCall.remote_display_name ?? '';
-          final shown = rawName.toLowerCase() == 'anonymous' ? '' : rawName;
-          call.value = CallInfo(
-            phase: CallPhase.incoming,
-            number: number,
-            name: shown.isEmpty || shown == number ? null : shown,
-            incoming: true,
-            secure: _account?.secureTransport ?? false,
-          );
+        if (_current != null || (incoming && call.value != null)) {
+          // Второй входящий ждёт ответа, только пока первый звонок уже соединён. Третий звонок, второй во время
+          // вызова или звонка, на который ещё не ответили, — «занято», как раньше.
+          if (incoming && _other == null && _current != null && call.value?.phase == CallPhase.active) {
+            _other = sipCall;
+            other.value = _incomingInfo(sipCall);
+          } else {
+            sipCall.hangup(<String, dynamic>{'status_code': 486});
+          }
+          return;
         }
+        _current = sipCall;
+        if (incoming) call.value = _incomingInfo(sipCall);
       case sip.CallStateEnum.ACCEPTED:
       case sip.CallStateEnum.CONFIRMED:
         if (!_isCurrent(sipCall)) return;
         final c = call.value;
-        if (c != null && c.phase != CallPhase.active) {
+        // since == null у активного — это второй звонок, на который мы только что ответили (см. acceptOther):
+        // таймер пускаем, когда разговор действительно соединился.
+        if (c != null && (c.phase != CallPhase.active || c.since == null)) {
+          // Второй звонок — тот, на который ответили при удержанном первом, или вызов «Сначала поговорить»
+          // (первый в это время на удержании): звук для них уже настроен первым разговором.
+          final second = c.phase == CallPhase.active || other.value != null;
           call.value = c.copyWith(phase: CallPhase.active, since: DateTime.now());
           // Звук пошёл — ещё раз говорим телефону, куда его выводить (к этому моменту его «звуковая часть»
-          // точно запущена и послушается).
-          unawaited(_setSpeakerphone(c.speaker));
+          // точно запущена и послушается). У второго звонка звук уже мог идти в гарнитуру — повторяем
+          // выбранное устройство, а не «громкая связь вкл/выкл», которое увело бы звук из гарнитуры.
+          unawaited(second ? _selectKind(c.route) : _setSpeakerphone(c.speaker));
           unawaited(_refreshRoutes());
         }
       case sip.CallStateEnum.STREAM:
-        if (_isCurrent(sipCall) && state.originator == sip.Originator.remote) {
-          unawaited(_playOnWeb(state.stream));
+        final stream = state.stream;
+        if (state.originator == sip.Originator.remote && stream != null) {
+          _remoteStreams[sipCall.id] = stream;
+          if (_isCurrent(sipCall)) unawaited(_playOnWeb(stream));
         }
       case sip.CallStateEnum.HOLD:
-        if (_isCurrent(sipCall) && state.originator == sip.Originator.local) {
-          call.value = call.value?.copyWith(held: true);
+        final slot = _slotOf(sipCall);
+        if (slot != null && state.originator == sip.Originator.local) {
+          slot.value = slot.value?.copyWith(held: true);
         }
       case sip.CallStateEnum.UNHOLD:
-        // В sip_ua 1.1.0 у события «удержание снято» не заполнено, кто его снял (ошибка в библиотеке),
-        // поэтому сами помним, что снимали мы. Иначе кнопка «Удержать» навсегда оставалась нажатой.
-        if (_isCurrent(sipCall) && (_unholding || state.originator == sip.Originator.local)) {
-          call.value = call.value?.copyWith(held: false);
+        // В sip_ua 1.1.0 у события «удержание снято» не заполнено, кто его снял (ошибка в библиотеке:
+        // конструктор EventCallUnhold в event_manager/call_events.dart не сохраняет originator),
+        // поэтому сами помним, какой звонок снимали мы. Иначе кнопка «Удержать» навсегда оставалась нажатой.
+        final slot = _slotOf(sipCall);
+        if (slot != null && (_unholding == sipCall.id || state.originator == sip.Originator.local)) {
+          slot.value = slot.value?.copyWith(held: false);
         }
       case sip.CallStateEnum.MUTED:
       case sip.CallStateEnum.UNMUTED:
-        if (_isCurrent(sipCall)) {
-          call.value = call.value?.copyWith(muted: state.state == sip.CallStateEnum.MUTED);
+        final slot = _slotOf(sipCall);
+        if (slot != null) {
+          slot.value = slot.value?.copyWith(muted: state.state == sip.CallStateEnum.MUTED);
         }
       case sip.CallStateEnum.FAILED:
+        if (_isOther(sipCall)) {
+          _clearOther();
+          return;
+        }
         if (!_isCurrent(sipCall)) return;
         final failure = _failureOf(state);
         _clearCall();
         if (failure != null) reportFailure(failure);
       case sip.CallStateEnum.ENDED:
-        if (_isCurrent(sipCall)) _clearCall();
+        if (_isOther(sipCall)) {
+          _clearOther();
+        } else if (_isCurrent(sipCall)) {
+          _clearCall();
+        }
       case sip.CallStateEnum.NONE:
       case sip.CallStateEnum.CONNECTING:
       case sip.CallStateEnum.PROGRESS:
@@ -249,6 +284,55 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   }
 
   bool _isCurrent(sip.Call sipCall) => _current != null && _current!.id == sipCall.id;
+
+  bool _isOther(sip.Call sipCall) => _other != null && _other!.id == sipCall.id;
+
+  /// Поле, в котором движок показывает этот звонок; null — звонок не наш (уже завершён или отклонён «занято»).
+  ValueNotifier<CallInfo?>? _slotOf(sip.Call sipCall) => _isCurrent(sipCall)
+      ? call
+      : _isOther(sipCall)
+      ? other
+      : null;
+
+  /// Входящий звонок, каким его видит приложение.
+  CallInfo _incomingInfo(sip.Call sipCall) {
+    // Звонящий без номера приходит как «anonymous» — это не имя и не номер, показываем «Неизвестный номер».
+    final raw = sipCall.remote_identity ?? '';
+    final number = raw.toLowerCase() == 'anonymous' ? '' : raw;
+    final rawName = sipCall.remote_display_name ?? '';
+    final shown = rawName.toLowerCase() == 'anonymous' ? '' : rawName;
+    return CallInfo(
+      phase: CallPhase.incoming,
+      number: number,
+      name: shown.isEmpty || shown == number ? null : shown,
+      incoming: true,
+      secure: _account?.secureTransport ?? false,
+      id: nextCallId(),
+    );
+  }
+
+  /// Ставит звонок на удержание. false — sip_ua отказалась (разговор ещё не установлен или идёт другой
+  /// обмен re-INVITE). RTCSession.hold() сразу, ещё до ответа АТС, выключает наш микрофон в этом звонке
+  /// и присылает событие HOLD; обёртка sip.Call.hold() этот результат теряет, поэтому зовём сессию напрямую.
+  bool _hold(sip.Call sipCall) {
+    try {
+      return sipCall.session.hold();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Снимает звонок с удержания. Событие UNHOLD приходит прямо во время вызова unhold(), поэтому отметку ставим до него.
+  bool _resume(sip.Call sipCall) {
+    _unholding = sipCall.id;
+    try {
+      return sipCall.session.unhold();
+    } catch (_) {
+      return false;
+    } finally {
+      _unholding = null;
+    }
+  }
 
   /// Переводит причину сбоя из sip_ua в понятную человеку. null — сбоя «для показа» нет
   /// (например, мы сами отменили вызов или собеседник не дождался ответа).
@@ -269,6 +353,28 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   }
 
   void _clearCall() {
+    _remoteStreams.remove(_current?.id);
+    final next = _other;
+    final nextInfo = other.value;
+    if (next != null && nextInfo != null) {
+      // Текущий кончился, но есть второй — он занимает место текущего, экран и уведомление остаются.
+      // Звук оставляем там, куда его вывел человек. Сначала [call], потом [other] — см. CallEngine.other.
+      // Ожидавший ответа второй звонок дальше звонит как обычный входящий.
+      final route = call.value?.route ?? nextInfo.route;
+      _current = next;
+      _other = null;
+      call.value = nextInfo.copyWith(route: route);
+      other.value = null;
+      if (nextInfo.phase == CallPhase.active) {
+        // Удержанный снимаем с удержания. Если sip_ua сейчас не может (идёт другой обмен), звонок
+        // остаётся на удержании — человек снимет его кнопкой «Удержать».
+        // Пока АТС переводит этот звонок (connectCalls), не трогаем его: снятие с удержания помешало бы переводу.
+        if (!_connecting) _resume(next);
+        final player = _webAudio;
+        if (player != null) player.srcObject = _remoteStreams[next.id];
+      }
+      return;
+    }
     final hadSpeaker = call.value?.speaker ?? false;
     _current = null;
     call.value = null;
@@ -276,6 +382,13 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
     if (hadSpeaker) unawaited(_setSpeakerphone(false));
     final player = _webAudio;
     if (player != null) player.srcObject = null;
+  }
+
+  /// Второй звонок закончился (ожидающий не дождался ответа или удержанный положил трубку); текущий не трогаем.
+  void _clearOther() {
+    _remoteStreams.remove(_other?.id);
+    _other = null;
+    other.value = null;
   }
 
   Future<void> _playOnWeb(rtc.MediaStream? stream) async {
@@ -414,23 +527,9 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
 
   // ---- Команды ----
 
-  @override
-  void dial(String number, {String? name}) {
-    final target = dialTarget(number);
-    if (call.value != null || target.isEmpty) return;
-    if (!link.value.isOnline) {
-      reportFailure(CallFailure.offline);
-      return;
-    }
-    // Экран вызова показываем сразу, не дожидаясь ответа сети.
-    call.value = CallInfo(
-      phase: CallPhase.outgoing,
-      number: number,
-      name: name,
-      incoming: false,
-      secure: _account?.secureTransport ?? false,
-    );
-    unawaited(_prepareAudio());
+  /// Запускает вызов в sip_ua. Сам звонок появляется позже, в CALL_INITIATION. Общий путь для [dial] и [consult]:
+  /// если вызов не начался, текущий звонок убирается (при консультации на его место возвращается удержанный).
+  void _startCall(String target) {
     unawaited(
       _helper
           .call(target, voiceOnly: true)
@@ -449,6 +548,26 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
             }
           }),
     );
+  }
+
+  @override
+  void dial(String number, {String? name}) {
+    final target = dialTarget(number);
+    if (call.value != null || target.isEmpty) return;
+    if (!link.value.isOnline) {
+      reportFailure(CallFailure.offline);
+      return;
+    }
+    // Экран вызова показываем сразу, не дожидаясь ответа сети.
+    call.value = CallInfo(
+      phase: CallPhase.outgoing,
+      number: number,
+      name: name,
+      incoming: false,
+      secure: _account?.secureTransport ?? false,
+    );
+    unawaited(_prepareAudio());
+    _startCall(target);
   }
 
   @override
@@ -503,9 +622,12 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
       current.hold();
     } else {
       // Событие приходит прямо во время вызова unhold(), поэтому отметку ставим до него.
-      _unholding = true;
-      current.unhold();
-      _unholding = false;
+      _unholding = current.id;
+      try {
+        current.unhold();
+      } finally {
+        _unholding = null;
+      }
     }
   }
 
@@ -534,6 +656,165 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
     if (call.value?.phase == CallPhase.active) _current?.sendDTMF(tone);
   }
 
+  @override
+  void acceptOther() {
+    final current = _current;
+    final waiting = _other;
+    final c = call.value;
+    final w = other.value;
+    if (current == null || waiting == null || c == null || w == null) return;
+    if (c.phase != CallPhase.active || w.phase != CallPhase.incoming) return;
+    // Сначала удерживаем текущий и только потом отвечаем: если удержать не вышло, не отвечаем вовсе —
+    // иначе оба разговора шли бы вживую одновременно.
+    if (!c.held && !_hold(current)) return;
+    final held = call.value ?? c.copyWith(held: true);
+    _current = waiting;
+    _other = current;
+    // Ответ уходит сразу; таймер пойдёт, когда звонок соединится (since == null, см. ACCEPTED).
+    // Звук — туда же, где шёл первый разговор: аудио уже настроено, его не сбрасываем (без _prepareAudio).
+    // Сначала [call], потом [other] — см. CallEngine.other.
+    call.value = w.copyWith(phase: CallPhase.active, route: held.route);
+    other.value = held;
+    waiting.answer(_helper.buildCallOptions(true));
+  }
+
+  @override
+  void rejectOther({bool busy = false}) {
+    if (other.value?.phase != CallPhase.incoming) return;
+    // Те же ответы, что и у обычного входящего: «Отклонить» — 603, «Не беспокоить» — 486 (см. hangUp и reject).
+    _other?.hangup(<String, dynamic>{'status_code': busy ? 486 : 603});
+  }
+
+  @override
+  void swap() {
+    final current = _current;
+    final held = _other;
+    final c = call.value;
+    final h = other.value;
+    if (current == null || held == null || c == null || h == null) return;
+    if (c.phase != CallPhase.active || h.phase != CallPhase.active) return;
+    // Сначала удерживаем текущий, потом снимаем с удержания второй: сбой на любом шаге оставит
+    // оба звонка на удержании, но никогда — оба вживую.
+    if (!c.held && !_hold(current)) return;
+    final nowHeld = call.value ?? c.copyWith(held: true);
+    _current = held;
+    _other = current;
+    call.value = h.copyWith(route: nowHeld.route);
+    other.value = nowHeld;
+    _resume(held);
+    final player = _webAudio;
+    if (player != null) player.srcObject = _remoteStreams[held.id];
+  }
+
+  @override
+  void consult(String number, {String? name}) {
+    final target = dialTarget(number);
+    final current = _current;
+    final c = call.value;
+    if (target.isEmpty || current == null || c == null || c.phase != CallPhase.active) return;
+    // Звонков не больше двух: консультация — только при одном звонке.
+    if (_other != null || other.value != null || _connecting) return;
+    if (!link.value.isOnline) {
+      reportFailure(CallFailure.offline);
+      return;
+    }
+    // Сначала удерживаем текущий (как в acceptOther): не вышло — не звоним вовсе, иначе первый собеседник
+    // слышал бы наш разговор со вторым.
+    if (!c.held && !_hold(current)) return;
+    final held = call.value ?? c.copyWith(held: true);
+    // Первый звонок становится вторым (удержанным), место текущего свободно до CALL_INITIATION: там новая
+    // исходящая сессия займёт _current (ветка «_current == null»), а входящий в это время получит «занято».
+    // Если человек завершит вызов раньше, hangUp увидит _current == null, пометит отмену (_cancelledDials)
+    // и вернёт удержанный на место текущего (_clearCall).
+    _other = current;
+    _current = null;
+    // Сначала [other], потом [call] — первый звонок ни на миг не пропадает из обоих полей (см. CallEngine.other).
+    other.value = held;
+    call.value = CallInfo(
+      phase: CallPhase.outgoing,
+      number: number,
+      name: name,
+      incoming: false,
+      secure: _account?.secureTransport ?? false,
+      // Звук — туда же, где шёл первый разговор: аудио уже настроено, его не сбрасываем (без _prepareAudio).
+      route: held.route,
+      id: nextCallId(),
+    );
+    _startCall(target);
+  }
+
+  @override
+  void connectCalls() {
+    final current = _current;
+    final held = _other;
+    final c = call.value;
+    final h = other.value;
+    if (_connecting || current == null || held == null || c == null || h == null) return;
+    // Оба звонка должны быть соединены: вызов «Сначала поговорить», на который ещё не ответили, соединять нельзя.
+    if (c.phase != CallPhase.active || c.since == null || h.phase != CallPhase.active) return;
+    // Перевод с консультацией (RFC 5589): REFER уходит по удержанному звонку, а в Refer-To — адрес текущего
+    // собеседника с заголовком Replaces, указывающим на наш разговор с ним. АТС соединяет удержанного с текущим
+    // вместо нас. Заголовок Replaces собирает сама sip_ua (refer_subscriber.dart, sendRefer).
+    final replaces = _ReplacesOf.from(current.session);
+    final to = current.session.remote_identity?.uri?.toString();
+    if (replaces == null || to == null) {
+      reportFailure(CallFailure.transfer);
+      return;
+    }
+    // Тип подписчика (ReferSubscriber) выводится из refer() — так его не нужно импортировать из недр пакета.
+    final subscriber = (() {
+      try {
+        return held.session.refer(to, <String, dynamic>{'replaces': replaces});
+      } catch (_) {
+        // Адрес не разобрался (rtc_session.dart, refer(): normalizeTarget).
+        return null;
+      }
+    })();
+    // null — сессия не в том состоянии, чтобы отправить REFER (rtc_session.dart, refer()).
+    if (subscriber == null) {
+      reportFailure(CallFailure.transfer);
+      return;
+    }
+    var settled = false;
+    void finish(bool ok) {
+      if (settled) return;
+      settled = true;
+      _connectingTimer?.cancel();
+      _connectingTimer = null;
+      if (!ok) {
+        // Звонки оставляем как были: человек продолжает говорить с текущим, первый — на удержании.
+        // Если пока ждали, текущий кончился и удержанный занял его место, — снимаем его с удержания сейчас.
+        final now = _current;
+        if (now != null && identical(now, held) && _other == null && (call.value?.held ?? false)) _resume(now);
+        reportFailure(CallFailure.transfer);
+        return;
+      }
+      // АТС соединила собеседников: убираем оба звонка с экрана (сначала удержанный, потом текущий — так
+      // текущий не «оживит» удержанный при завершении) и кладём трубку на обоих. История пишется как обычно.
+      for (final leg in [held, current]) {
+        if (_isOther(leg)) _clearOther();
+        if (_isCurrent(leg)) _clearCall();
+      }
+      for (final leg in [held, current]) {
+        // АТС могла уже сама завершить звонок — тогда класть трубку не на чем. Проверяем заранее: terminate()
+        // в sip_ua асинхронная, и её ошибку «уже завершён» try/catch здесь не поймал бы.
+        if (leg.session.isEnded()) continue;
+        try {
+          leg.hangup();
+        } catch (_) {
+          // Сбой при остановке звука не должен мешать завершению второго звонка.
+        }
+      }
+    }
+
+    // Итог приходит в NOTIFY с кодом ответа новой стороны (refer_subscriber.dart, receiveNotify): 2xx — соединила,
+    // 3xx–6xx — нет. Отказ на сам REFER (например, 403 или 501) — тоже «нет».
+    _connectingTimer = Timer(_connectCallsTimeout, () => finish(false));
+    subscriber.on(refer.EventReferAccepted(), (refer.EventReferAccepted _) => finish(true));
+    subscriber.on(refer.EventReferFailed(), (refer.EventReferFailed _) => finish(false));
+    subscriber.on(refer.EventReferRequestFailed(), (refer.EventReferRequestFailed _) => finish(false));
+  }
+
   // ---- Остальные события sip_ua нам не нужны ----
 
   @override
@@ -548,15 +829,64 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   @override
   void dispose() {
     _connectTimer?.cancel();
+    _connectingTimer?.cancel();
     _retryTimer?.cancel();
     _helper.removeSipUaHelperListener(this);
-    try {
-      _current?.hangup();
-    } catch (_) {
-      // Звонок мог уже завершиться сам.
+    for (final c in [_current, _other]) {
+      try {
+        c?.hangup();
+      } catch (_) {
+        // Звонок мог уже завершиться сам.
+      }
     }
     _stop();
     unawaited(_webAudio?.dispose());
     super.dispose();
+  }
+}
+
+/// Какие метки поставить в заголовок Replaces при переводе с консультацией.
+///
+/// [fromTag] и [toTag] — метки из заголовков From и To исходного INVITE этого звонка (так их хранит sip_ua).
+/// В Replaces to-tag должен быть меткой АТС, а from-tag — нашей: АТС ищет разговор именно так
+/// (RFC 3891; в Asterisk — `pjsip_ua_find_dialog(call_id, свой тег, чужой тег)`).
+/// Когда звонили мы, наша метка стоит в From; когда звонили нам — в To, поэтому для входящего метки
+/// меняются местами. Вынесено в отдельную функцию, чтобы это правило было закреплено тестом:
+/// ошибка здесь проявляется только на живой АТС — «Соединить» молча не срабатывает.
+@visibleForTesting
+({String toTag, String fromTag}) replacesTags({
+  required bool incoming,
+  required String fromTag,
+  required String toTag,
+}) => incoming ? (toTag: fromTag, fromTag: toTag) : (toTag: toTag, fromTag: fromTag);
+
+/// Что нужно sip_ua, чтобы собрать заголовок Replaces (refer_subscriber.dart, sendRefer: читает у объекта
+/// call_id, to_tag и from_tag). Саму сессию передать нельзя: у RTCSession нет поля call_id.
+///
+/// По RFC 3891 to-tag — метка той стороны, которая получит Replaces (у нас это АТС), from-tag — наша.
+/// У RTCSession from_tag/to_tag — метки из заголовков From/To исходного INVITE, поэтому для звонка,
+/// который пришёл к нам, их нужно поменять местами.
+class _ReplacesOf {
+  _ReplacesOf(this.call_id, this.to_tag, this.from_tag);
+
+  // Имена полей — как их читает sip_ua, поэтому не в принятом в Dart стиле.
+  // ignore: non_constant_identifier_names
+  final String call_id;
+  // ignore: non_constant_identifier_names
+  final String to_tag;
+  // ignore: non_constant_identifier_names
+  final String from_tag;
+
+  static _ReplacesOf? from(dynamic session) {
+    try {
+      final callId = session.request?.call_id as String?;
+      final fromTag = session.from_tag as String?;
+      final toTag = session.to_tag as String?;
+      if (callId == null || fromTag == null || toTag == null) return null;
+      final tags = replacesTags(incoming: session.direction == sip.Direction.incoming, fromTag: fromTag, toTag: toTag);
+      return _ReplacesOf(callId, tags.toTag, tags.fromTag);
+    } catch (_) {
+      return null;
+    }
   }
 }

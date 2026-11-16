@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import '../l10n/strings.dart';
 import '../state/dial_request.dart';
 import '../state/home_filter.dart';
+import '../state/setup_link.dart';
 import '../theme/sado_icons.dart';
 import '../theme/sado_style.dart';
 import 'contacts_screen.dart';
@@ -30,6 +31,18 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     // fireImmediately: запрос мог прийти раньше, чем это окно построилось.
     ref.listenManual(dialRequestProvider, (_, next) {
       if (next != null && _tab != AppTab.dial) setState(() => _tab = AppTab.dial);
+    }, fireImmediately: true);
+    // Ссылка настройки, когда вход уже выполнен: учётную запись не трогаем, только объясняем, что делать.
+    // Сообщение и очистка — после кадра: при fireImmediately окно ещё строится и не может искать ScaffoldMessenger.
+    ref.listenManual(setupRequestProvider, (_, next) {
+      if (next == null) return;
+      Future.microtask(() {
+        if (!mounted) return;
+        ref.read(setupRequestProvider.notifier).clear();
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(S.of(context).setupSignedIn)));
+      });
     }, fireImmediately: true);
   }
 

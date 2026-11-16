@@ -142,8 +142,9 @@ Future<void> _dial(WidgetTester tester, String digits) async {
     await tester.tap(find.byKey(Key('key.$d')));
   }
   await tester.pump();
-  // Кнопка «стереть» появляется плавно — ждём, пока проявится.
+  // Кнопка «стереть» появляется плавно, а след от нажатия на клавише гаснет — ждём, пока всё успокоится.
   await tester.pump(const Duration(milliseconds: 300));
+  await tester.pump(const Duration(seconds: 1));
 }
 
 Future<void> _call(WidgetTester tester, String digits) async {
@@ -202,8 +203,9 @@ void main() {
       await tester.tap(find.byKey(Key('transfer.key.$d')));
     }
     await tester.pump();
-    // Кнопка «Перевести» плавно «включается» — ждём, пока доедет.
+    // Кнопка «Перевести» плавно «включается», след от нажатия на клавише гаснет — ждём.
     await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(seconds: 1));
     await _shot(tester, 'material-transfer');
   }, skip: !_enabled);
 

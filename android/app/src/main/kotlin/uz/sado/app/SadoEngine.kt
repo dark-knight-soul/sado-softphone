@@ -69,6 +69,19 @@ object SadoEngine {
         send("dialRequest", number)
     }
 
+    /**
+     * Ссылка настройки sado://login?…, которую Dart ещё не забрал (как [pendingDial]). Хранится как есть
+     * и только до первого [takePendingSetup]: в ней может быть пароль. Разбирает и проверяет её Dart.
+     */
+    @Volatile
+    var pendingSetup: String? = null
+
+    /** Запоминает ссылку настройки и сразу сообщает Dart. Ссылку не пишем в журнал — в ней может быть пароль. */
+    fun requestSetup(link: String) {
+        pendingSetup = link
+        send("setupRequest", link)
+    }
+
     /** Сообщение в Dart: «hangUp» или «accept» (кнопки в уведомлении); при необходимости — с одним значением. */
     fun send(method: String, argument: Any? = null) {
         main.post { channel?.invokeMethod(method, argument) }
@@ -143,6 +156,11 @@ object SadoEngine {
                 val number = pendingDial
                 pendingDial = null
                 result.success(number)
+            }
+            "takePendingSetup" -> {
+                val link = pendingSetup
+                pendingSetup = null
+                result.success(link)
             }
             "appIcon" -> result.success(appIcon(app))
             "setAppIcon" -> {

@@ -34,6 +34,9 @@ class MainActivity : FlutterActivity() {
         /** Длиннее номер из ссылки не берём: это уже не номер, а мусор. */
         private const val MAX_DIAL_LENGTH = 64
 
+        /** Длиннее ссылку настройки не передаём вовсе (обрезанная была бы испорченной). Та же граница в Dart. */
+        private const val MAX_SETUP_LENGTH = 1000
+
         /** Окно приложения сейчас на экране. Тогда входящий показывает само приложение, без всплывающего уведомления. */
         @Volatile
         var visible = false
@@ -72,6 +75,8 @@ class MainActivity : FlutterActivity() {
         // Ссылки tel: и sip: приходят от чужих приложений и без метки, поэтому разбираются отдельно,
         // до проверки метки. Проверка ниже для «ответить» и показа поверх блокировки остаётся прежней.
         handleDialLink(intent)
+        // Ссылка настройки sado://login (обычно из QR-кода) — тоже без метки и тоже до проверки.
+        handleSetupLink(intent)
         // Отвечать на звонок и показывать окно поверх блокировки просит только наше же уведомление.
         // Намерение без метки (от другого приложения или от рабочего стола) просто открывает окно.
         if (intent.getStringExtra(EXTRA_TOKEN) != CallService.intentToken) return
@@ -99,6 +104,22 @@ class MainActivity : FlutterActivity() {
         number = number.substringBefore(';').trim() // параметры вроде ;phone-context=...
         if (number.isEmpty()) return
         SadoEngine.requestDial(number.take(MAX_DIAL_LENGTH))
+    }
+
+    /**
+     * Ссылка sado://login?server=…&number=…&password=… — передаём её в Dart как есть, там она проверяется
+     * и только заполняет форму входа (входит человек сам). Поверх экрана блокировки окно здесь не показываем.
+     * Ссылку не пишем в журнал: в ней может быть пароль.
+     */
+    private fun handleSetupLink(intent: Intent) {
+        if (intent.action != Intent.ACTION_VIEW) return
+        // Из списка недавних система подставляет прежнее намерение — форму второй раз не заполняем.
+        if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        val uri = intent.data ?: return
+        if (uri.scheme?.lowercase() != "sado" || uri.host?.lowercase() != "login") return
+        val link = uri.toString()
+        if (link.length > MAX_SETUP_LENGTH) return
+        SadoEngine.requestSetup(link)
     }
 
     /** Показывать окно поверх экрана блокировки и включать экран — только на время звонка. */

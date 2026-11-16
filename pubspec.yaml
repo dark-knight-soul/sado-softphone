@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.1.0+2
+version: 1.2.0+3
 
 environment:
   sdk: ^3.14.0
@@ -38,7 +38,9 @@ dependencies:
   shared_preferences: ^2.5.6
   flutter_localizations:
     sdk: flutter
-  sip_ua: ^1.1.0
+  # Точная версия: перевод с консультацией использует внутренние классы и имена полей библиотеки
+  # (события REFER, заголовок Replaces). Перед обновлением перечитать connectCalls в sip_engine.dart.
+  sip_ua: 1.1.0
   flutter_webrtc: ^1.6.3
   flutter_secure_storage: ^11.2.0
   logger: ^2.8.0

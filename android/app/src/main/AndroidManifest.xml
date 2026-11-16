@@ -64,6 +64,14 @@
                 <data android:scheme="tel" />
                 <data android:scheme="sip" />
             </intent-filter>
+            <!-- Ссылка настройки sado://login?server=…&number=…&password=… (обычно QR-код от администратора,
+                 его считывает обычная камера телефона). Только заполняет форму входа, входит человек сам. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sado" android:host="login" />
+            </intent-filter>
         </activity>
         <!-- Значки для рабочего стола. Включён всегда ровно один «псевдоним» главного окна;
              какой именно — выбирается в настройках приложения (SadoEngine.setAppIcon). -->
