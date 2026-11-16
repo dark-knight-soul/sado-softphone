@@ -1,0 +1,30 @@
+SADO est un softphone gratuit et open source pour Android qui se connecte à votre propre standard téléphonique : Asterisk, FreePBX, FreeSWITCH, Kamailio et les autres serveurs proposant SIP sur WebSocket avec l'audio WebRTC.
+
+APPELS
+• Appels entrants et sortants en audio HD (Opus, G.722)
+• Mise en attente, micro coupé, haut-parleur, casques Bluetooth et filaires, clavier DTMF
+• Double appel : répondez à un second appel et passez de l'un à l'autre
+• Transfert direct ou après consultation
+• Ne pas déranger, notification d'appels manqués, votre propre sonnerie
+• Les liens tel: et sip: ouvrent le clavier
+
+PENSÉ POUR LE BUREAU
+• Reste joignable en arrière-plan et après un redémarrage
+• Statut de vos collègues à côté des contacts, si le standard le fournit
+• Connexion en scannant un QR code fourni par votre administrateur
+• Vos propres contacts et, si vous le souhaitez, le carnet d'adresses du téléphone
+
+À VOTRE GOÛT
+• Six styles d'interface avec thèmes clair et sombre
+• Huit icônes pour l'écran d'accueil, plusieurs façons de répondre
+• Neuf langues : Français, English, Deutsch, Español, Italiano, Português, Türkçe, Русский, Oʻzbek
+
+VIE PRIVÉE
+• Ni publicité, ni statistiques, ni compte : l'application ne parle qu'à votre standard
+• Aucun service Google requis
+• Le mot de passe est conservé dans le Keystore Android ; l'historique et les contacts ne quittent pas le téléphone
+
+CE QU'IL FAUT À VOTRE STANDARD
+SIP sur WebSocket (wss:// recommandé), média WebRTC (ICE, DTLS-SRTP), Opus, G.722 ou G.711. Le SIP classique sur UDP ou TCP n'est pas pris en charge. Le téléphone doit pouvoir joindre le standard directement.
+
+Code source, guide d'installation et signalement de problèmes : https://github.com/dark-knight-soul/sado-softphone

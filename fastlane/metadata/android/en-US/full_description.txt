@@ -1,0 +1,30 @@
+SADO is a free, open-source softphone for Android that connects to your own PBX: Asterisk, FreePBX, FreeSWITCH, Kamailio and other servers that offer SIP over WebSocket with WebRTC audio.
+
+CALLS
+• Incoming and outgoing calls with HD audio (Opus, G.722)
+• Hold, mute, speaker, Bluetooth and wired headsets, DTMF keypad
+• Call waiting: answer a second call and switch between the two
+• Blind and attended transfer
+• Do not disturb, missed-call notifications, your own ringtone
+• tel: and sip: links open the dialer
+
+MADE FOR THE OFFICE
+• Stays reachable in the background and after a reboot
+• Colleague status next to your contacts when the PBX provides it
+• Sign in by scanning a QR code from your administrator
+• Your own contacts and, optionally, the phone's address book
+
+YOURS TO STYLE
+• Six interface styles with light and dark themes
+• Eight home-screen icons, several ways to answer a call
+• Nine languages: English, Deutsch, Español, Français, Italiano, Português, Türkçe, Русский, Oʻzbek
+
+PRIVATE BY DESIGN
+• No ads, no analytics, no accounts: the app talks only to your PBX
+• No Google services required
+• The password is kept in the Android Keystore; history and contacts never leave the phone
+
+WHAT YOUR PBX NEEDS
+SIP over WebSocket (wss:// recommended), WebRTC media (ICE, DTLS-SRTP), Opus, G.722 or G.711. Classic SIP over UDP or TCP is not supported. The phone must be able to reach the PBX directly.
+
+Source code, setup guide and issue tracker: https://github.com/dark-knight-soul/sado-softphone

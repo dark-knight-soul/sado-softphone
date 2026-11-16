@@ -1,0 +1,1 @@
+Open-Source-Softphone für Ihre Telefonanlage: SIP über WebSocket, WebRTC-Audio

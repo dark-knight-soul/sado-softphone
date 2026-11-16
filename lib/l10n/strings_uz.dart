@@ -243,6 +243,11 @@ class _Uz extends S {
   String get backgroundNote =>
       "Ilova yigʻilgan holatda ham aloqada qoladi: pardada jim bildirishnoma turadi, batareya biroz tezroq sarflanadi.";
   @override
+  String get pushWake => 'Qoʻngʻiroqda uygʻotish (sinov rejimi)';
+  @override
+  String get pushWakeNote =>
+      'Ilova doimiy aloqada turmaydi: qoʻngʻiroq kelganda ATS telefonni Google orqali push-xabar bilan uygʻotadi. Batareya kamroq sarflanadi, qoʻngʻiroq bir necha soniya kechroq ulanadi. Faqat ATS administratori buni qoʻllab-quvvatlashini tasdiqlagan boʻlsa yoqing — aks holda fondagi qoʻngʻiroqlar yetib kelmaydi.';
+  @override
   String get batteryAsk => "Batareya cheklovini olib tashlash";
   @override
   String get batteryOk => "Batareya cheklovi olib tashlangan";

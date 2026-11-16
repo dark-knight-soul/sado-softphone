@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../data/demo_data.dart';
+import '../data/push_info.dart';
 import '../state/account.dart';
 
 /// Состояние связи с АТС.
@@ -214,7 +215,15 @@ abstract class CallEngine {
   ///
   /// [keepTrying] — не сдаваться, если сервер недоступен (так подключаемся при запуске приложения
   /// с уже сохранённой учётной записью). При входе с экрана входа — false: нужен быстрый ответ.
-  Future<LinkStatus> connect(Account account, String password, {bool keepTrying = false});
+  ///
+  /// [push] — как АТС может разбудить этот телефон (режим «будить по звонку»). Сведения уходят на АТС
+  /// вместе с регистрацией, стандартным способом (RFC 8599).
+  Future<LinkStatus> connect(Account account, String password, {bool keepTrying = false, PushInfo? push});
+
+  /// Уйти со связи, не выходя из учётной записи (режим «будить по звонку»): снять регистрацию, чтобы АТС
+  /// знала, что телефон нужно будить, и закрыть соединение. Вернуться на связь — снова [connect].
+  /// Во время звонка ничего не делает.
+  Future<void> sleep() async {}
 
   void dial(String number, {String? name});
 

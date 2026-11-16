@@ -4,6 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/push_info.dart';
+
+export '../data/push_info.dart';
+
 /// «Сторож звонка»: всё, что делает сам телефон, чтобы приложение оставалось на связи в фоне,
 /// звонило при входящем и не обрывало разговор. На Android это фоновая служба (CallService.kt).
 abstract class CallKeeper {
@@ -97,6 +101,20 @@ abstract class CallKeeper {
   /// Открывает системный экран с этим разрешением.
   Future<void> openFullScreenSettings() async {}
 
+  /// Сведения для АТС о том, как будить этот телефон push-уведомлением; null — push здесь нет
+  /// (сборка без сервисов Google, телефон без них или не Android).
+  Future<PushInfo?> pushInfo() async => null;
+
+  /// Не разбудил ли приложение только что push «проснись» (пока код Dart ещё не был запущен).
+  /// Спрашивается один раз при запуске; повторный вопрос отвечает «нет».
+  Future<bool> takePushWake() async => false;
+
+  /// Пришёл push «проснись», когда код Dart уже работал.
+  void Function()? onPushWake;
+
+  /// Адрес телефона для push сменился — АТС нужно сообщить новый ([pushInfo]).
+  void Function()? onPushTokenChanged;
+
   /// Какой значок сейчас стоит на рабочем столе; null — значок выбирать нельзя.
   Future<String?> appIcon() async => null;
 
@@ -155,6 +173,10 @@ class AndroidCallKeeper extends CallKeeper {
           if (number is String) onDialRequest?.call(number);
           // Номер уже доставлен событием — убираем его из очереди, чтобы он не всплыл при следующем запуске.
           unawaited(takePendingDial());
+        case 'pushWake':
+          onPushWake?.call();
+        case 'pushToken':
+          onPushTokenChanged?.call();
         case 'setupRequest':
           final link = call.arguments;
           if (link is String) onSetupRequest?.call(link);
@@ -230,6 +252,12 @@ class AndroidCallKeeper extends CallKeeper {
   Future<RingSettings> pickRingtone() async => RingSettings.fromMap(await _invoke<Object?>('pickRingtone'));
 
   @override
+  Future<PushInfo?> pushInfo() async => PushInfo.fromMap(await _invoke<Object?>('pushInfo'));
+
+  @override
+  Future<bool> takePushWake() async => await _invoke<bool>('takePushWake') ?? false;
+
+  @override
   Future<QrScan> scanQr({required String hint, required String close}) async =>
       QrScan.fromMap(await _invoke<Object?>('scanQr', {'hint': hint, 'close': close}));
 
@@ -272,7 +300,6 @@ class AndroidCallKeeper extends CallKeeper {
   Future<void> openUrl(String url) => _invoke<void>('openUrl', url);
 }
 
-/// Мелодия и вибрация входящих звонков, как их видит телефон.
 /// Чем закончилось сканирование QR-кода.
 enum QrScanStatus {
   /// Код прочитан, его текст — в [QrScan.text].
@@ -307,6 +334,7 @@ class QrScan {
   final String? text;
 }
 
+/// Мелодия и вибрация входящих звонков, как их видит телефон.
 class RingSettings {
   const RingSettings({this.title, this.vibrate = true});
 

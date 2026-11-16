@@ -1,0 +1,3 @@
+• QR scanner on the sign-in screen: point the camera at the code from your administrator and the form is filled in
+• Colleague status next to your contacts (available, on a call, offline) when the PBX provides it
+• New permission: Camera, asked only when you open the scanner

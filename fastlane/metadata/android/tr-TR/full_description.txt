@@ -1,0 +1,30 @@
+SADO, Android için ücretsiz ve açık kaynaklı bir softphone'dur. Kendi santralinize bağlanır: Asterisk, FreePBX, FreeSWITCH, Kamailio ve WebSocket üzerinden SIP ile WebRTC sesini destekleyen diğer sunucular.
+
+ARAMALAR
+• HD sesle gelen ve giden aramalar (Opus, G.722)
+• Bekletme, sessize alma, hoparlör, Bluetooth ve kablolu kulaklık, DTMF tuşları
+• Arama bekletme: ikinci aramayı cevaplayın ve ikisi arasında geçiş yapın
+• Doğrudan veya danışarak aktarma
+• Rahatsız etmeyin, cevapsız arama bildirimi, kendi zil sesiniz
+• tel: ve sip: bağlantıları tuş takımını açar
+
+OFİS İÇİN TASARLANDI
+• Arka planda ve telefon yeniden başlatıldıktan sonra ulaşılabilir kalır
+• Santral bildiriyorsa, kişilerin yanında iş arkadaşlarınızın durumu
+• Yöneticinizin verdiği QR kodu okutarak giriş
+• Kendi kişileriniz ve isterseniz telefon rehberi
+
+SİZE GÖRE
+• Açık ve koyu temalı altı arayüz stili
+• Ana ekran için sekiz simge, aramayı cevaplamanın birkaç yolu
+• Dokuz dil: Türkçe, English, Deutsch, Español, Français, Italiano, Português, Русский, Oʻzbek
+
+GİZLİLİK
+• Reklam yok, analiz yok, hesap yok: uygulama yalnızca santralinizle konuşur
+• Google hizmetleri gerekmez
+• Şifre Android Keystore'da saklanır; geçmiş ve kişiler telefondan çıkmaz
+
+SANTRALİNİZDE NE OLMALI
+WebSocket üzerinden SIP (wss:// önerilir), WebRTC ses (ICE, DTLS-SRTP), Opus, G.722 veya G.711. UDP veya TCP üzerinden klasik SIP desteklenmez. Telefon santrale doğrudan ulaşabilmelidir.
+
+Kaynak kodu, kurulum kılavuzu ve sorun bildirimi: https://github.com/dark-knight-soul/sado-softphone

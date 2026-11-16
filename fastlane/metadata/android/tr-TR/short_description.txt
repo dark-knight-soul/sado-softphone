@@ -1,0 +1,1 @@
+Şirket santraliniz için açık kaynak softphone: WebSocket üzerinden SIP, WebRTC

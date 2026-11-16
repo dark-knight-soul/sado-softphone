@@ -1,0 +1,1 @@
+Kompaniyangiz ATSi uchun ochiq kodli softfon: WebSocket orqali SIP, WebRTC

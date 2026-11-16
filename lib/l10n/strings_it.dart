@@ -243,6 +243,11 @@ class _It extends S {
   String get backgroundNote =>
       "L'app resta connessa anche quando è ridotta a icona: una notifica silenziosa resta nell'area notifiche e la batteria si scarica un po' più in fretta.";
   @override
+  String get pushWake => 'Sveglia alla chiamata (sperimentale)';
+  @override
+  String get pushWakeNote =>
+      "L'app non resta connessa: quando arriva una chiamata, il centralino sveglia il telefono con una notifica push tramite Google. Consuma meno batteria e la chiamata impiega qualche secondo in più a collegarsi. Attivalo solo se l'amministratore ha confermato che il centralino lo supporta, altrimenti le chiamate in background non arriveranno.";
+  @override
   String get batteryAsk => "Rimuovi limitazione batteria";
   @override
   String get batteryOk => "Limitazione batteria rimossa";

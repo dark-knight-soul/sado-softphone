@@ -1,3 +1,4 @@
+import '../data/push_info.dart';
 import '../state/account.dart';
 import 'call_engine.dart';
 import 'demo_engine.dart';
@@ -10,7 +11,7 @@ CallEngine createRealEngine() => _UnsupportedEngine();
 /// Честно отказывает во входе, а не изображает связь.
 class _UnsupportedEngine extends DemoEngine {
   @override
-  Future<LinkStatus> connect(Account account, String password, {bool keepTrying = false}) async {
+  Future<LinkStatus> connect(Account account, String password, {bool keepTrying = false, PushInfo? push}) async {
     const status = LinkStatus(LinkState.failed, LinkError.other);
     link.value = status;
     return status;

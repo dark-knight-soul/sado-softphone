@@ -242,6 +242,11 @@ class _Tr extends S {
   String get backgroundNote =>
       "Uygulama küçültüldüğünde de bağlı kalır: bildirim panelinde sessiz bir bildirim durur ve pil biraz daha hızlı tükenir.";
   @override
+  String get pushWake => 'Aramada uyandır (deneysel)';
+  @override
+  String get pushWakeNote =>
+      'Uygulama sürekli bağlı kalmaz: arama geldiğinde santral telefonu Google üzerinden anlık bildirimle uyandırır. Pil daha az tüketilir, arama birkaç saniye daha geç bağlanır. Yalnızca yöneticiniz santralin bunu desteklediğini onayladıysa açın; aksi halde arka plandaki aramalar ulaşmaz.';
+  @override
   String get batteryAsk => "Pil kısıtlamasını kaldır";
   @override
   String get batteryOk => "Pil kısıtlaması kaldırıldı";

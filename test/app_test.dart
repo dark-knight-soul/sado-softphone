@@ -25,7 +25,7 @@ class FixedLinkEngine extends DemoEngine {
   final LinkStatus result;
 
   @override
-  Future<LinkStatus> connect(Account account, String password, {bool keepTrying = false}) async {
+  Future<LinkStatus> connect(Account account, String password, {bool keepTrying = false, PushInfo? push}) async {
     link.value = result;
     return result;
   }
@@ -46,6 +46,20 @@ class RecordingKeeper extends CallKeeper {
     final number = pendingDial;
     pendingDial = null;
     return number;
+  }
+
+  /// Push на «телефоне»: сведения для АТС (null — push нет) и «приложение запущено push-уведомлением».
+  PushInfo? push = pushOnStart;
+  bool wokenByPush = wokenByPushOnStart;
+
+  @override
+  Future<PushInfo?> pushInfo() async => push;
+
+  @override
+  Future<bool> takePushWake() async {
+    final woken = wokenByPush;
+    wokenByPush = false;
+    return woken;
   }
 
   /// Что «ответит сканер» QR-кода; тест задаёт это перед нажатием кнопки.
@@ -129,6 +143,11 @@ class RecordingKeeper extends CallKeeper {
 
 /// Что новый [RecordingKeeper] вернёт как «номер из ссылки при запуске» (тесты открытия ссылок).
 String? pendingDialOnStart;
+
+/// Push у нового [RecordingKeeper]: есть ли он на «телефоне» и запущено ли приложение push-уведомлением.
+/// Сбрасываются после каждого запуска приложения в тесте.
+PushInfo? pushOnStart;
+bool wokenByPushOnStart = false;
 
 /// Что новый [RecordingKeeper] вернёт как «ссылку настройки при запуске» (тесты входа по ссылке).
 String? pendingSetupOnStart;

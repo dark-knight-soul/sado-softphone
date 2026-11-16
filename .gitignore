@@ -63,3 +63,6 @@ google-services.json
 ДОСТУПЫ.md
 *.cmd
 .claude/
+
+# Временная подстановка зависимостей (tool/stand_check/run.py)
+pubspec_overrides.yaml

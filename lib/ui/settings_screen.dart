@@ -6,6 +6,7 @@ import '../l10n/strings.dart';
 import '../platform/call_keeper.dart';
 import '../platform/phone_contacts.dart';
 import '../state/call.dart';
+import '../state/push_mode.dart';
 import '../state/session.dart';
 import '../state/settings.dart';
 import '../theme/sado_icons.dart';
@@ -158,6 +159,22 @@ class SettingsScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
             child: Text(s.backgroundNote, style: TextStyle(fontSize: 13, color: p.muted, height: 1.4)),
           ),
+          if (settings.backgroundLink && ref.watch(pushInfoProvider) != null) ...[
+            SectionLabel(s.pushWake),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Segmented<bool>(
+                key: const Key('settings.pushWake'),
+                options: {false: s.dndOff, true: s.dndOn},
+                selected: settings.pushWake,
+                onChanged: controller.setPushWake,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+              child: Text(s.pushWakeNote, style: TextStyle(fontSize: 13, color: p.muted, height: 1.4)),
+            ),
+          ],
           if (settings.backgroundLink) const _BatteryRow(),
           if (settings.backgroundLink) const _AutostartRow(),
           // Уведомления могли запретить; с Android 14 отдельно разрешается и экран звонка поверх блокировки.

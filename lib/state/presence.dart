@@ -7,6 +7,7 @@ import '../platform/call_keeper.dart';
 import '../sip/call_engine.dart';
 import 'call.dart';
 import 'dial_request.dart';
+import 'push_mode.dart';
 import 'setup_link.dart';
 import 'session.dart';
 import 'settings.dart';
@@ -56,7 +57,7 @@ class _Presence {
         next = 'show|$title|$text';
         if (next != _shown) _keeper.show(title: title, text: text, hangUpLabel: s.hangUp);
       }
-    } else if (account != null && !account.isDemo && settings.backgroundLink) {
+    } else if (account != null && !account.isDemo && settings.backgroundLink && !_ref.read(pushAsleepProvider)) {
       final link = _ref.read(linkProvider);
       final text = switch (link.state) {
         LinkState.online when settings.dnd => s.dndStatus(account.number),
@@ -69,6 +70,7 @@ class _Presence {
       if (next != _shown) _keeper.standby(title: 'SADO', text: text);
     } else {
       next = 'none';
+      // Сюда же попадаем, когда приложение «уснуло» в режиме «будить по звонку»: служба не нужна до push.
       // Прячем и при самом первом проходе: службу могла поднять перезагрузка телефона, хотя человек
       // вышел из учётной записи или выключил «Звонки в фоне».
       if (_shown != next) _keeper.hide();
@@ -113,5 +115,6 @@ final presenceProvider = Provider<void>((ref) {
   ref.listen(sessionProvider, (_, _) => presence.sync());
   ref.listen(settingsProvider, (_, _) => presence.sync());
   ref.listen(ringSilencedProvider, (_, _) => presence.sync());
+  ref.listen(pushAsleepProvider, (_, _) => presence.sync());
   presence.sync();
 });

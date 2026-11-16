@@ -244,6 +244,11 @@ class _Es extends S {
   String get backgroundNote =>
       "La app sigue conectada aunque esté minimizada: una notificación silenciosa queda en el panel y la batería se gasta algo más rápido.";
   @override
+  String get pushWake => 'Despertar al llamar (experimental)';
+  @override
+  String get pushWakeNote =>
+      'La app no permanece conectada: cuando entra una llamada, la centralita despierta el teléfono con una notificación push a través de Google. Gasta menos batería y la llamada tarda unos segundos más en conectarse. Actívalo solo si tu administrador ha confirmado que la centralita lo admite; de lo contrario, las llamadas en segundo plano no llegarán.';
+  @override
   String get batteryAsk => "Quitar restricción de batería";
   @override
   String get batteryOk => "Restricción de batería quitada";

@@ -237,6 +237,18 @@ flutter test
 flutter build apk --release --split-per-abi
 ```
 
+This builds the default `foss` flavor, which contains no Google libraries. A second flavor, `gms`
+(`--flavor gms`), adds Firebase Cloud Messaging and needs your own `google-services.json` in `android/app`.
+It enables an experimental **Wake on call** mode (Settings → Background calls): instead of staying connected,
+the app goes offline when idle and the PBX wakes the phone with a push notification when a call comes in.
+
+The PBX has to support it. The app registers with the RFC 8599 parameters in its Contact —
+`pn-provider=fcm; pn-param=<Firebase project>; pn-prid=<device token>` — and removes its registration when it
+goes to sleep, so the PBX must remember the token. On an incoming call the PBX sends a high-priority FCM data
+message `{"type":"wake"}` from that Firebase project, waits for the phone to register (a few seconds) and then
+delivers the call as usual. The push carries no call details. This mode has been checked against a real PBX only
+up to the registration exchange; the push delivery itself has not been verified on a device yet.
+
 Useful extras:
 
 ```bash
@@ -246,7 +258,14 @@ flutter run -d chrome
 # Regenerate the README screenshots
 flutter test --dart-define=SADO_SHOTS=true test/screenshots_test.dart
 python tool/make_screens.py
+
+# Check the call engine against your own Asterisk without a phone (settings: see the top of the script)
+python tool/stand_check/run.py
 ```
+
+`tool/stand_check` runs the app's real call engine in headless Chrome with a fake microphone and walks through
+registration, calls, hold, call waiting, attended transfer and colleague status on a live PBX. It checks the SIP
+exchange, not the audio and not the Android code.
 
 Code comments and commit messages are in Russian; issues and pull requests are welcome in English or Russian.
 

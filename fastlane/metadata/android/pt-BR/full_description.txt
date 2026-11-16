@@ -1,0 +1,30 @@
+SADO é um softphone gratuito e de código aberto para Android que se conecta ao seu próprio PABX: Asterisk, FreePBX, FreeSWITCH, Kamailio e outros servidores que oferecem SIP sobre WebSocket com áudio WebRTC.
+
+CHAMADAS
+• Chamadas recebidas e efetuadas com áudio HD (Opus, G.722)
+• Espera, mudo, viva-voz, fones Bluetooth e com fio, teclado DTMF
+• Chamada em espera: atenda uma segunda chamada e alterne entre as duas
+• Transferência direta ou depois de falar com o colega
+• Não perturbe, aviso de chamadas perdidas, seu próprio toque
+• Links tel: e sip: abrem o teclado
+
+FEITO PARA O ESCRITÓRIO
+• Continua disponível em segundo plano e após reiniciar o celular
+• Status dos colegas ao lado dos contatos, quando o PABX informa
+• Login lendo um QR code do seu administrador
+• Seus próprios contatos e, se quiser, a agenda do celular
+
+DO SEU JEITO
+• Seis estilos de interface com tema claro e escuro
+• Oito ícones para a tela inicial, várias formas de atender
+• Nove idiomas: Português, English, Deutsch, Español, Français, Italiano, Türkçe, Русский, Oʻzbek
+
+PRIVACIDADE
+• Sem anúncios, sem análises, sem contas: o app conversa apenas com o seu PABX
+• Não precisa dos serviços do Google
+• A senha fica no Keystore do Android; o histórico e os contatos não saem do celular
+
+O QUE O SEU PABX PRECISA
+SIP sobre WebSocket (wss:// recomendado), mídia WebRTC (ICE, DTLS-SRTP), Opus, G.722 ou G.711. O SIP clássico sobre UDP ou TCP não é compatível. O celular precisa alcançar o PABX diretamente.
+
+Código-fonte, guia de configuração e relatos de problemas: https://github.com/dark-knight-soul/sado-softphone

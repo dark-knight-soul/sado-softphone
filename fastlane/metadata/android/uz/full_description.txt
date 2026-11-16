@@ -1,0 +1,30 @@
+SADO — Android uchun bepul, ochiq kodli softfon. U oʻzingizning ATSingizga ulanadi: Asterisk, FreePBX, FreeSWITCH, Kamailio hamda WebSocket orqali SIP va WebRTC ovozini qoʻllab-quvvatlaydigan boshqa serverlar.
+
+QOʻNGʻIROQLAR
+• Sifatli ovozli kiruvchi va chiquvchi qoʻngʻiroqlar (Opus, G.722)
+• Ushlab turish, mikrofonni oʻchirish, dinamik, Bluetooth va simli garnitura, raqam terish
+• Ikkinchi qoʻngʻiroq: javob berish va ikki suhbat orasida almashish
+• Qoʻngʻiroqni oʻtkazish — darhol yoki hamkasb bilan gaplashgandan keyin
+• «Bezovta qilinmasin», javobsiz qoʻngʻiroqlar haqida bildirishnoma, oʻz ohangingiz
+• tel: va sip: havolalari raqam terishni ochadi
+
+OFISDA ISHLASH UCHUN
+• Fonda va telefon qayta yoqilgandan keyin ham aloqada qoladi
+• ATS bersa, kontakt yonida hamkasbning holati koʻrinadi
+• Administrator bergan QR-kod orqali kirish
+• Oʻz kontaktlaringiz va xohlasangiz, telefon kontaktlari
+
+KOʻRINISHNI TANLANG
+• Yorugʻ va qorongʻi mavzuli oltita interfeys uslubi
+• Ish stoli uchun sakkizta belgi, qoʻngʻiroqqa javob berishning bir necha usuli
+• Toʻqqizta til: oʻzbek, rus, ingliz, nemis, ispan, fransuz, italyan, portugal, turk
+
+MAXFIYLIK
+• Reklama, tahlil va hisob yozuvlarisiz: ilova faqat sizning ATSingiz bilan bogʻlanadi
+• Google xizmatlari kerak emas
+• Parol Android himoyalangan xotirasida saqlanadi; tarix va kontaktlar telefondan chiqmaydi
+
+ATSDAN NIMA KERAK
+WebSocket orqali SIP (wss:// tavsiya etiladi), WebRTC ovozi (ICE, DTLS-SRTP), Opus, G.722 yoki G.711 kodeklari. UDP yoki TCP orqali oddiy SIP qoʻllab-quvvatlanmaydi. Telefon ATSga toʻgʻridan-toʻgʻri ulana olishi kerak.
+
+Manba kodi, sozlash yoʻriqnomasi va fikr-mulohazalar: https://github.com/dark-knight-soul/sado-softphone

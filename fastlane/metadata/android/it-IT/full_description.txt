@@ -1,0 +1,30 @@
+SADO è un softphone gratuito e open source per Android che si collega al tuo centralino: Asterisk, FreePBX, FreeSWITCH, Kamailio e altri server che offrono SIP su WebSocket con audio WebRTC.
+
+CHIAMATE
+• Chiamate in entrata e in uscita con audio HD (Opus, G.722)
+• Attesa, microfono muto, altoparlante, cuffie Bluetooth e con cavo, tastiera DTMF
+• Avviso di chiamata: rispondi a una seconda chiamata e passa dall'una all'altra
+• Trasferimento diretto o dopo aver parlato con il collega
+• Non disturbare, notifica delle chiamate perse, la tua suoneria
+• I link tel: e sip: aprono la tastiera
+
+PENSATO PER L'UFFICIO
+• Resta raggiungibile in background e dopo il riavvio
+• Stato dei colleghi accanto ai contatti, se il centralino lo fornisce
+• Accesso inquadrando un codice QR ricevuto dall'amministratore
+• I tuoi contatti e, se vuoi, la rubrica del telefono
+
+A MODO TUO
+• Sei stili di interfaccia con tema chiaro e scuro
+• Otto icone per la schermata Home, diversi modi per rispondere
+• Nove lingue: Italiano, English, Deutsch, Español, Français, Português, Türkçe, Русский, Oʻzbek
+
+RISERVATEZZA
+• Niente pubblicità, niente statistiche, niente account: l'app parla solo con il tuo centralino
+• Non servono i servizi Google
+• La password è custodita nel Keystore di Android; cronologia e contatti non lasciano il telefono
+
+COSA SERVE AL CENTRALINO
+SIP su WebSocket (consigliato wss://), audio WebRTC (ICE, DTLS-SRTP), Opus, G.722 o G.711. Il SIP classico su UDP o TCP non è supportato. Il telefono deve poter raggiungere direttamente il centralino.
+
+Codice sorgente, guida alla configurazione e segnalazioni: https://github.com/dark-knight-soul/sado-softphone

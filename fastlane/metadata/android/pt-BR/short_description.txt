@@ -1,0 +1,1 @@
+Softphone de código aberto para o PABX da sua empresa: SIP sobre WebSocket

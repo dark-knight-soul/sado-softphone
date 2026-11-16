@@ -82,6 +82,21 @@ object SadoEngine {
         send("setupRequest", link)
     }
 
+    /** Когда пришёл push «проснись» (время по часам работы телефона); 0 — не приходил. */
+    @Volatile
+    private var pushWokeAt = 0L
+
+    /**
+     * Пришёл push «проснись»: поднимаем службу и мотор (как после включения телефона) и сообщаем Dart.
+     * Срочный push даёт приложению право запустить службу из фона. Что делать дальше — выйти на связь
+     * и ждать звонка — решает код Dart; если он ещё не запущен, он спросит сам ([takePushWake]).
+     */
+    fun pushWake(app: Context) {
+        pushWokeAt = android.os.SystemClock.elapsedRealtime()
+        CallService.start(app, CallService.MODE_STANDBY, title = "SADO", text = "")
+        send("pushWake")
+    }
+
     /** Сообщение в Dart: «hangUp» или «accept» (кнопки в уведомлении); при необходимости — с одним значением. */
     fun send(method: String, argument: Any? = null) {
         main.post { channel?.invokeMethod(method, argument) }
@@ -162,6 +177,13 @@ object SadoEngine {
                 val link = pendingSetup
                 pendingSetup = null
                 result.success(link)
+            }
+            "pushInfo" -> Push.info(app) { info -> main.post { result.success(info) } }
+            "takePushWake" -> {
+                // «Будили недавно» — в пределах минуты: более старый push уже не про текущий звонок.
+                val at = pushWokeAt
+                pushWokeAt = 0L
+                result.success(at != 0L && android.os.SystemClock.elapsedRealtime() - at < 60_000)
             }
             "appIcon" -> result.success(appIcon(app))
             "setAppIcon" -> {

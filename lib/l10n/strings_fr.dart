@@ -244,6 +244,11 @@ class _Fr extends S {
   String get backgroundNote =>
       "L'application reste connectée lorsqu'elle est réduite : une notification discrète reste affichée et la batterie se décharge un peu plus vite.";
   @override
+  String get pushWake => "Réveil à l'appel (expérimental)";
+  @override
+  String get pushWakeNote =>
+      "L'application ne reste pas connectée : à l'arrivée d'un appel, le standard réveille le téléphone par une notification push via Google. La batterie est moins sollicitée et l'appel met quelques secondes de plus à s'établir. N'activez ce mode que si votre administrateur a confirmé que le standard le prend en charge ; sinon, les appels en arrière-plan n'arriveront pas.";
+  @override
   String get batteryAsk => "Lever la restriction de batterie";
   @override
   String get batteryOk => "Restriction de batterie levée";

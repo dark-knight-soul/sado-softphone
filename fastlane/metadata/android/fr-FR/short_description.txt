@@ -1,0 +1,1 @@
+Softphone libre pour votre standard : SIP sur WebSocket, audio WebRTC

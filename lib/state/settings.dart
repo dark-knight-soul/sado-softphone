@@ -37,6 +37,7 @@ class Settings {
     required this.answerMode,
     required this.iconSet,
     required this.backgroundLink,
+    required this.pushWake,
     required this.dnd,
     required this.phoneContacts,
   });
@@ -52,6 +53,10 @@ class Settings {
   /// Оставаться на связи с АТС, когда приложение свёрнуто (постоянная фоновая служба).
   final bool backgroundLink;
 
+  /// Вместо постоянной связи — «будить по звонку»: в покое приложение уходит со связи, а при звонке АТС
+  /// будит телефон push-уведомлением. Действует, только если на телефоне есть push (см. push_mode.dart).
+  final bool pushWake;
+
   /// «Не беспокоить»: входящие не звонят, звонящий слышит «занято».
   final bool dnd;
 
@@ -66,6 +71,7 @@ class Settings {
     AnswerMode? answerMode,
     IconSetId? iconSet,
     bool? backgroundLink,
+    bool? pushWake,
     bool? dnd,
     bool? phoneContacts,
   }) => Settings(
@@ -75,6 +81,7 @@ class Settings {
     answerMode: answerMode ?? this.answerMode,
     iconSet: iconSet ?? this.iconSet,
     backgroundLink: backgroundLink ?? this.backgroundLink,
+    pushWake: pushWake ?? this.pushWake,
     dnd: dnd ?? this.dnd,
     phoneContacts: phoneContacts ?? this.phoneContacts,
   );
@@ -88,11 +95,13 @@ class Settings {
       other.answerMode == answerMode &&
       other.iconSet == iconSet &&
       other.backgroundLink == backgroundLink &&
+      other.pushWake == pushWake &&
       other.dnd == dnd &&
       other.phoneContacts == phoneContacts;
 
   @override
-  int get hashCode => Object.hash(styleId, themeMode, lang, answerMode, iconSet, backgroundLink, dnd, phoneContacts);
+  int get hashCode =>
+      Object.hash(styleId, themeMode, lang, answerMode, iconSet, backgroundLink, pushWake, dnd, phoneContacts);
 }
 
 class SettingsController extends Notifier<Settings> {
@@ -102,6 +111,7 @@ class SettingsController extends Notifier<Settings> {
   static const _kAnswer = 'answerMode';
   static const _kIcons = 'iconSet';
   static const _kBackground = 'backgroundLink';
+  static const _kPushWake = 'pushWake';
   static const _kDnd = 'dnd';
   static const _kPhoneContacts = 'phoneContacts';
 
@@ -117,6 +127,7 @@ class SettingsController extends Notifier<Settings> {
       answerMode: AnswerMode.values.asNameMap()[p.getString(_kAnswer)] ?? AnswerMode.auto,
       iconSet: IconSetId.values.asNameMap()[p.getString(_kIcons)] ?? IconSetId.outlined,
       backgroundLink: p.getBool(_kBackground) ?? true,
+      pushWake: p.getBool(_kPushWake) ?? false,
       dnd: p.getBool(_kDnd) ?? false,
       phoneContacts: p.getBool(_kPhoneContacts) ?? false,
     );
@@ -149,6 +160,11 @@ class SettingsController extends Notifier<Settings> {
   void setBackgroundLink(bool on) {
     state = state.copyWith(backgroundLink: on);
     _prefs.setBool(_kBackground, on);
+  }
+
+  void setPushWake(bool on) {
+    state = state.copyWith(pushWake: on);
+    _prefs.setBool(_kPushWake, on);
   }
 
   void setDnd(bool on) {

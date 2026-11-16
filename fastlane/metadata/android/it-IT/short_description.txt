@@ -1,0 +1,1 @@
+Softphone open source per il tuo centralino: SIP su WebSocket, audio WebRTC

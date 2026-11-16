@@ -244,6 +244,11 @@ class _De extends S {
   String get backgroundNote =>
       "Die App bleibt auch minimiert verbunden: Eine dezente Benachrichtigung bleibt in der Leiste, und der Akku wird etwas schneller leer.";
   @override
+  String get pushWake => 'Bei Anruf wecken (experimentell)';
+  @override
+  String get pushWakeNote =>
+      'Die App bleibt nicht dauerhaft verbunden: Bei einem Anruf weckt die Telefonanlage das Telefon per Push-Benachrichtigung über Google. Das spart Akku, der Anruf wird einige Sekunden später verbunden. Nur einschalten, wenn Ihr Administrator bestätigt hat, dass die Telefonanlage das unterstützt – sonst kommen Anrufe im Hintergrund nicht an.';
+  @override
   String get batteryAsk => "Akku-Einschränkung aufheben";
   @override
   String get batteryOk => "Akku-Einschränkung aufgehoben";

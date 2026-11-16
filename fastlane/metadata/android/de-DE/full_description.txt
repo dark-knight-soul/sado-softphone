@@ -1,0 +1,30 @@
+SADO ist ein kostenloses Open-Source-Softphone für Android, das sich mit Ihrer eigenen Telefonanlage verbindet: Asterisk, FreePBX, FreeSWITCH, Kamailio und andere Server, die SIP über WebSocket mit WebRTC-Audio anbieten.
+
+ANRUFE
+• Ein- und ausgehende Anrufe in HD-Qualität (Opus, G.722)
+• Halten, Stummschalten, Lautsprecher, Bluetooth- und Kabel-Headsets, Tastatur für Nachwahl
+• Anklopfen: zweiten Anruf annehmen und zwischen beiden wechseln
+• Weiterleiten – direkt oder nach Rückfrage
+• „Nicht stören“, Hinweis auf verpasste Anrufe, eigener Klingelton
+• tel:- und sip:-Links öffnen die Wähltastatur
+
+FÜR DAS BÜRO
+• Bleibt im Hintergrund und nach einem Neustart erreichbar
+• Status der Kollegen neben den Kontakten, wenn die Telefonanlage ihn liefert
+• Anmeldung per QR-Code vom Administrator
+• Eigene Kontakte und auf Wunsch das Adressbuch des Telefons
+
+NACH IHREM GESCHMACK
+• Sechs Oberflächenstile mit hellem und dunklem Design
+• Acht App-Symbole, mehrere Arten, einen Anruf anzunehmen
+• Neun Sprachen: Deutsch, English, Español, Français, Italiano, Português, Türkçe, Русский, Oʻzbek
+
+PRIVATSPHÄRE
+• Keine Werbung, keine Analyse, keine Konten: Die App spricht nur mit Ihrer Telefonanlage
+• Keine Google-Dienste erforderlich
+• Das Passwort liegt im Android Keystore; Anrufliste und Kontakte verlassen das Telefon nicht
+
+WAS IHRE TELEFONANLAGE BRAUCHT
+SIP über WebSocket (wss:// empfohlen), WebRTC-Medien (ICE, DTLS-SRTP), Opus, G.722 oder G.711. Klassisches SIP über UDP oder TCP wird nicht unterstützt. Das Telefon muss die Telefonanlage direkt erreichen können.
+
+Quellcode, Einrichtungsanleitung und Fehlermeldungen: https://github.com/dark-knight-soul/sado-softphone

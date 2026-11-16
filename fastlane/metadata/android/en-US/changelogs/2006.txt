@@ -1,0 +1,4 @@
+• The download is half the size: about 17 MB instead of 34
+• Ending a call is more reliable
+• The call engine is now checked against a real PBX before each release: calls, hold, call waiting, both kinds of transfer
+• Experimental "Wake on call" mode for builds with Google push; it is not part of the regular APKs

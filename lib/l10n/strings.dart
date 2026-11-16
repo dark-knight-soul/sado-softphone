@@ -226,6 +226,10 @@ abstract class S {
   String get backgroundOn;
   String get backgroundOff;
   String get backgroundNote;
+
+  /// Режим «будить по звонку» (push): заголовок и пояснение.
+  String get pushWake;
+  String get pushWakeNote;
   String get batteryAsk;
   String get batteryOk;
   String get autostartAsk;

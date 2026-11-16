@@ -1,3 +1,5 @@
+import '../data/push_info.dart';
+
 import 'dart:async';
 
 import '../state/account.dart';
@@ -26,8 +28,20 @@ class DemoEngine extends CallEngine {
   /// «АТС отказывается соединять»: [connectCalls] не соединяет, а сообщает о сбое — чтобы проверить это в тестах.
   bool failConnect = false;
 
+  /// С какими сведениями о push подключались (по одному на каждое подключение) и сколько раз «засыпали» — для тестов.
+  final connectedWith = <PushInfo?>[];
+  int sleeps = 0;
+
   @override
-  Future<LinkStatus> connect(Account account, String password, {bool keepTrying = false}) async {
+  Future<void> sleep() async {
+    if (call.value != null || other.value != null) return;
+    sleeps++;
+    link.value = LinkStatus.offline;
+  }
+
+  @override
+  Future<LinkStatus> connect(Account account, String password, {bool keepTrying = false, PushInfo? push}) async {
+    connectedWith.add(push);
     link.value = LinkStatus.online;
     return LinkStatus.online;
   }

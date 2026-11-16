@@ -243,6 +243,11 @@ class _Pt extends S {
   String get backgroundNote =>
       "O app continua conectado quando minimizado: uma notificação silenciosa fica na barra e a bateria descarrega um pouco mais rápido.";
   @override
+  String get pushWake => 'Acordar ao receber chamada (experimental)';
+  @override
+  String get pushWakeNote =>
+      'O app não fica conectado o tempo todo: quando chega uma chamada, o PABX acorda o celular com uma notificação push pelo Google. Gasta menos bateria e a chamada leva alguns segundos a mais para conectar. Ative apenas se o administrador confirmou que o PABX oferece suporte; caso contrário, as chamadas em segundo plano não chegarão.';
+  @override
   String get batteryAsk => "Remover restrição de bateria";
   @override
   String get batteryOk => "Restrição de bateria removida";

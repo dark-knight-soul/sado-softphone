@@ -10,6 +10,7 @@ import 'package:sip_ua/sip_ua.dart' as sip;
 import 'package:sip_ua/src/event_manager/refer_events.dart' as refer;
 
 import '../data/demo_data.dart';
+import '../data/push_info.dart';
 import '../state/account.dart';
 import 'call_engine.dart';
 import 'pidf.dart';
@@ -94,7 +95,7 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   rtc.RTCVideoRenderer? _webAudio;
 
   @override
-  Future<LinkStatus> connect(Account account, String password, {bool keepTrying = false}) {
+  Future<LinkStatus> connect(Account account, String password, {bool keepTrying = false, PushInfo? push}) {
     _account = account;
     _keepTrying = keepTrying;
     _firstResult = Completer<LinkStatus>();
@@ -116,6 +117,15 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
       // АТС доступна напрямую, а лишний запрос наружу — это задержка и утечка адреса.
       ..iceServers = <Map<String, String>>[];
     settings.webSocketSettings.userAgent = 'Sado-Mobile/1.0';
+    if (push != null) {
+      // Режим «будить по звонку»: сообщаем АТС, куда слать push (RFC 8599). Параметры попадают в адрес
+      // Contact регистрации; при снятии регистрации АТС их забывает.
+      settings.registerParams.extraContactUriParams = <String, dynamic>{
+        'pn-provider': push.provider,
+        'pn-param': push.project,
+        'pn-prid': push.token,
+      };
+    }
 
     _connectTimer?.cancel();
     _connectTimer = Timer(_connectTimeout, () => _settle(const LinkStatus(LinkState.failed, LinkError.network)));
@@ -139,6 +149,17 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
       // При входе с экрана входа неудача окончательна: не оставляем sip_ua переподключаться в фоне.
       if (!status.isOnline && !_keepTrying) _stop();
     }
+  }
+
+  @override
+  Future<void> sleep() async {
+    if (_current != null || _other != null) return;
+    // Остановка sip_ua сама снимает регистрацию на АТС и закрывает соединение.
+    _keepTrying = false;
+    _stop();
+    _subscribed.clear();
+    if (presence.value.isNotEmpty) presence.value = const {};
+    link.value = LinkStatus.offline;
   }
 
   void _stop() {
@@ -223,7 +244,7 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
           // иначе у собеседника зазвонил бы телефон, а у нас не было бы ни экрана, ни уведомления.
           _cancelledDials--;
           try {
-            sipCall.hangup();
+            _end(sipCall);
           } catch (_) {
             // Вызов мог ещё не дойти до состояния, из которого его можно отменить, — тогда он завершится сам.
           }
@@ -236,7 +257,7 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
             _other = sipCall;
             other.value = _incomingInfo(sipCall);
           } else {
-            sipCall.hangup(<String, dynamic>{'status_code': 486});
+            _end(sipCall, <String, dynamic>{'status_code': 486});
           }
           return;
         }
@@ -615,12 +636,32 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
     }
     // Неотвеченный входящий отклоняем явным «отклонено», а не «недоступен».
     final declining = c?.phase == CallPhase.incoming;
-    current.hangup(declining ? <String, dynamic>{'status_code': 603} : null);
+    _end(current, declining ? <String, dynamic>{'status_code': 603} : null);
+  }
+
+  /// Завершает звонок sip_ua (или отклоняет его — тогда в [options] код ответа).
+  ///
+  /// Перед отправкой «конец связи» библиотека останавливает звуковые потоки, и этот шаг может сорваться
+  /// или молча прервать завершение. Тогда завершаем сам сеанс напрямую — иначе человек остался бы
+  /// в разговоре, который нельзя положить.
+  void _end(sip.Call? sipCall, [Map<String, dynamic>? options]) {
+    if (sipCall == null) return;
+    try {
+      sipCall.hangup(options);
+      if (sipCall.session.isEnded()) return;
+    } catch (_) {
+      // Сорвалась остановка потоков — завершаем сеанс ниже.
+    }
+    try {
+      sipCall.session.terminate(options);
+    } catch (_) {
+      // Сеанс уже завершён или завершается.
+    }
   }
 
   @override
   void reject() {
-    if (call.value?.phase == CallPhase.incoming) _current?.hangup(<String, dynamic>{'status_code': 486});
+    if (call.value?.phase == CallPhase.incoming) _end(_current, <String, dynamic>{'status_code': 486});
   }
 
   @override
@@ -706,7 +747,7 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   void rejectOther({bool busy = false}) {
     if (other.value?.phase != CallPhase.incoming) return;
     // Те же ответы, что и у обычного входящего: «Отклонить» — 603, «Не беспокоить» — 486 (см. hangUp и reject).
-    _other?.hangup(<String, dynamic>{'status_code': busy ? 486 : 603});
+    _end(_other, <String, dynamic>{'status_code': busy ? 486 : 603});
   }
 
   @override
@@ -824,7 +865,7 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
         // в sip_ua асинхронная, и её ошибку «уже завершён» try/catch здесь не поймал бы.
         if (leg.session.isEnded()) continue;
         try {
-          leg.hangup();
+          _end(leg);
         } catch (_) {
           // Сбой при остановке звука не должен мешать завершению второго звонка.
         }
@@ -930,7 +971,7 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
     _helper.removeSipUaHelperListener(this);
     for (final c in [_current, _other]) {
       try {
-        c?.hangup();
+        _end(c);
       } catch (_) {
         // Звонок мог уже завершиться сам.
       }

@@ -242,6 +242,11 @@ class _En extends S {
   String get backgroundNote =>
       "The app stays connected while minimized: a quiet notification stays in the shade, and the battery drains a little faster.";
   @override
+  String get pushWake => 'Wake on call (experimental)';
+  @override
+  String get pushWakeNote =>
+      'The app does not stay connected: when a call comes in, the PBX wakes the phone with a push notification through Google. It uses less battery, and calls take a few seconds longer to connect. Turn it on only if your PBX administrator has confirmed the PBX supports it — otherwise background calls will not arrive.';
+  @override
   String get batteryAsk => "Remove battery restriction";
   @override
   String get batteryOk => "Battery restriction removed";
