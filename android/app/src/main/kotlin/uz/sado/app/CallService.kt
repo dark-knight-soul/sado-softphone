@@ -169,7 +169,15 @@ class CallService : Service() {
     private fun channel(id: String, name: String, importance: Int, ringing: Boolean = false) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = getSystemService(NotificationManager::class.java)
-        if (manager.getNotificationChannel(id) != null) return
+        val existing = manager.getNotificationChannel(id)
+        if (existing != null) {
+            // Канал уже есть: поправляем только название — язык телефона могли сменить.
+            if (existing.name != name) {
+                existing.name = name
+                manager.createNotificationChannel(existing)
+            }
+            return
+        }
         val channel = NotificationChannel(id, name, importance)
         channel.setShowBadge(false)
         if (ringing) {
@@ -222,7 +230,7 @@ class CallService : Service() {
 
     /** Тихое постоянное уведомление «на связи». */
     private fun standbyNotification(title: String, text: String): Notification {
-        channel(CHANNEL_LINK, "SADO: на связи", NotificationManager.IMPORTANCE_MIN)
+        channel(CHANNEL_LINK, getString(R.string.channel_link), NotificationManager.IMPORTANCE_MIN)
         return builder(CHANNEL_LINK)
             .setSmallIcon(R.drawable.ic_call)
             .setContentTitle(title)
@@ -236,7 +244,7 @@ class CallService : Service() {
 
     /** Идёт разговор: уведомление с кнопкой «Завершить». */
     private fun callNotification(title: String, text: String, hangUpLabel: String): Notification {
-        channel(CHANNEL_CALLS, "SADO: разговор", NotificationManager.IMPORTANCE_LOW)
+        channel(CHANNEL_CALLS, getString(R.string.channel_calls), NotificationManager.IMPORTANCE_LOW)
         return builder(CHANNEL_CALLS)
             .setSmallIcon(R.drawable.ic_call)
             .setContentTitle(title)
@@ -273,11 +281,18 @@ class CallService : Service() {
         }
         when (channelId) {
             CHANNEL_INCOMING_OPEN_SILENT ->
-                channel(channelId, "SADO: входящие без звука (приложение открыто)", NotificationManager.IMPORTANCE_LOW)
+                channel(channelId, getString(R.string.channel_incoming_open_silent), NotificationManager.IMPORTANCE_LOW)
             incomingOpen ->
-                channel(channelId, "SADO: входящие (приложение открыто)", NotificationManager.IMPORTANCE_DEFAULT, ringing = true)
-            CHANNEL_INCOMING_SILENT -> channel(channelId, "SADO: входящие без звука", NotificationManager.IMPORTANCE_HIGH)
-            else -> channel(channelId, "SADO: входящие звонки", NotificationManager.IMPORTANCE_HIGH, ringing = true)
+                channel(
+                    channelId,
+                    getString(R.string.channel_incoming_open),
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                    ringing = true,
+                )
+            CHANNEL_INCOMING_SILENT ->
+                channel(channelId, getString(R.string.channel_incoming_silent), NotificationManager.IMPORTANCE_HIGH)
+            else ->
+                channel(channelId, getString(R.string.channel_incoming), NotificationManager.IMPORTANCE_HIGH, ringing = true)
         }
         val fullScreen = openApp(2) { putExtra(MainActivity.EXTRA_RING, true) }
         val accept = openApp(3) { action = MainActivity.ACTION_ACCEPT }

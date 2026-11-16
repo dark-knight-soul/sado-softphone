@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:sado/app.dart';
+import 'package:sado/l10n/strings.dart';
 import 'package:sado/sip/call_engine.dart';
 import 'package:sado/state/session.dart';
 import 'package:sado/state/setup_link.dart';
@@ -219,7 +220,7 @@ void main() {
   });
 
   testWidgets('экран входа со ссылкой помещается на маленьком телефоне на всех языках', (tester) async {
-    for (final lang in ['ru', 'uz', 'en']) {
+    for (final lang in S.languageNames.keys) {
       // ws:// — чтобы на экране было и предупреждение: самый длинный вариант формы.
       pendingSetupOnStart = 'sado://login?server=ws%3A%2F%2Fpbx.example.com%2Fws&number=1003&password=x';
       await pumpApp(tester, saved: {'lang': lang}, size: const Size(320, 568));

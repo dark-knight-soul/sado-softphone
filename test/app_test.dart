@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:sado/app.dart';
 import 'package:sado/data/demo_data.dart';
+import 'package:sado/l10n/strings.dart';
 import 'package:sado/platform/call_keeper.dart';
 import 'package:sado/sip/call_engine.dart';
 import 'package:sado/sip/demo_engine.dart';
@@ -1155,7 +1156,7 @@ void main() {
   });
 
   testWidgets('экран входа помещается на маленьком телефоне на всех языках', (tester) async {
-    for (final lang in ['ru', 'uz', 'en']) {
+    for (final lang in S.languageNames.keys) {
       await pumpApp(tester, saved: {'lang': lang}, size: const Size(320, 568));
       expect(tester.takeException(), isNull, reason: 'язык $lang');
       expect(find.byKey(const Key('login.demo')), findsOneWidget);

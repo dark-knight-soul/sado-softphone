@@ -13,7 +13,7 @@
   <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-2ea44f"></a>
   <img alt="Platform: Android 7.0+" src="https://img.shields.io/badge/platform-Android%207.0%2B-3ddc84">
   <img alt="Built with Flutter" src="https://img.shields.io/badge/built%20with-Flutter-02569B">
-  <img alt="Languages: English, Russian, Uzbek" src="https://img.shields.io/badge/languages-EN%20%C2%B7%20RU%20%C2%B7%20UZ-informational">
+  <img alt="Interface in 9 languages" src="https://img.shields.io/badge/languages-9-informational">
 </p>
 
 <p align="center">
@@ -62,7 +62,8 @@ Wi-Fi or mobile data, with no SIM card involved.
 - Light and dark theme for every style, three icon sets
 - Four ways to answer: buttons, slide to answer, swipe left/right, swipe up/down — or “match the style”
 - Eight home-screen icons to choose from
-- English, Russian and Uzbek interface; follows the phone language by default
+- Interface in 9 languages: English, Deutsch, Español, Français, Italiano, Português, Türkçe, Русский, Oʻzbek —
+  follows the phone language by default, English if the phone language is not in the list
 
 **Contacts**
 - Your own contact list stored on the phone: add, edit, delete, search

@@ -33,6 +33,7 @@ class SadoApp extends ConsumerWidget {
       themeMode: settings.themeMode,
       locale: settings.lang == null ? null : Locale(settings.lang!),
       supportedLocales: S.supportedLocales,
+      localeResolutionCallback: S.resolveLocale,
       localizationsDelegates: const [S.delegate, ...GlobalMaterialLocalizations.delegates],
       home: const RootView(),
     );

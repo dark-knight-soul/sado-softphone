@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Названия каналов уведомлений: узбекский. -->
+<resources>
+    <string name="channel_link">SADO: aloqada</string>
+    <string name="channel_calls">SADO: suhbat</string>
+    <string name="channel_incoming">SADO: kiruvchi qoʻngʻiroqlar</string>
+    <string name="channel_incoming_silent">SADO: kiruvchi, ovozsiz</string>
+    <string name="channel_incoming_open">SADO: kiruvchi (ilova ochiq)</string>
+    <string name="channel_incoming_open_silent">SADO: kiruvchi, ovozsiz (ilova ochiq)</string>
+    <string name="channel_missed">SADO: javobsiz qoʻngʻiroqlar</string>
+</resources>

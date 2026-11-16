@@ -137,7 +137,7 @@ class SettingsScreen extends ConsumerWidget {
               key: const Key('settings.language'),
               title: s.language,
               // Пустая строка — «как в телефоне»: в Map нельзя удобно держать null-ключ с подписью.
-              options: {'': s.langSystem, 'uz': 'Oʻzbek', 'ru': 'Русский', 'en': 'English'},
+              options: {'': s.langSystem, ...S.languageNames},
               selected: settings.lang ?? '',
               onChanged: (v) => controller.setLang(v.isEmpty ? null : v),
             ),
@@ -272,9 +272,12 @@ class ChoiceRow<T> extends StatelessWidget {
     final p = SadoStyle.of(context).palette;
     final picked = await showModalBottomSheet<T>(
       context: context,
+      // Длинный список (языки) выше половины экрана: разрешаем окну расти и прокручиваться.
+      isScrollControlled: true,
+      useSafeArea: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: ListView(
+          shrinkWrap: true,
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),

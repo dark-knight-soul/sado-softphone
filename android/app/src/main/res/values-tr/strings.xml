@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Названия каналов уведомлений: турецкий. -->
+<resources>
+    <string name="channel_link">SADO: bağlı</string>
+    <string name="channel_calls">SADO: görüşme sürüyor</string>
+    <string name="channel_incoming">SADO: gelen aramalar</string>
+    <string name="channel_incoming_silent">SADO: gelen aramalar, sessiz</string>
+    <string name="channel_incoming_open">SADO: gelen aramalar (uygulama açık)</string>
+    <string name="channel_incoming_open_silent">SADO: gelen aramalar, sessiz (uygulama açık)</string>
+    <string name="channel_missed">SADO: cevapsız aramalar</string>
+</resources>

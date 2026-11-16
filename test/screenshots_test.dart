@@ -26,6 +26,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const _enabled = bool.fromEnvironment('SADO_SHOTS');
 
+/// Язык снимков. Для README — английский; другой язык задаётся так: --dart-define=SADO_SHOTS_LANG=de
+/// (удобно глазами проверить, не обрезаются ли надписи перевода).
+const _lang = String.fromEnvironment('SADO_SHOTS_LANG', defaultValue: 'en');
+
 /// Размер экрана обычного телефона в точках и отступы под строку состояния и полоску жестов.
 const _size = Size(394, 853);
 const _top = 38.0;
@@ -89,7 +93,7 @@ Future<void> _start(WidgetTester tester, {required String style, required String
   SharedPreferences.setMockInitialValues({
     'account.server': 'pbx.example.com',
     'account.number': '1003',
-    'lang': 'en',
+    'lang': _lang,
     'style': style,
     'themeMode': theme,
     'answerMode': answer,

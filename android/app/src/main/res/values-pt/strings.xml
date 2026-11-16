@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Названия каналов уведомлений: португальский. -->
+<resources>
+    <string name="channel_link">SADO: conectado</string>
+    <string name="channel_calls">SADO: chamada em andamento</string>
+    <string name="channel_incoming">SADO: chamadas recebidas</string>
+    <string name="channel_incoming_silent">SADO: chamadas recebidas, silenciosas</string>
+    <string name="channel_incoming_open">SADO: chamadas recebidas (app aberto)</string>
+    <string name="channel_incoming_open_silent">SADO: chamadas recebidas, silenciosas (app aberto)</string>
+    <string name="channel_missed">SADO: chamadas perdidas</string>
+</resources>

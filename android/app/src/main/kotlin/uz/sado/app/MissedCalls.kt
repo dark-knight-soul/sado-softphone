@@ -24,11 +24,17 @@ object MissedCalls {
         }
         val manager = context.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (manager.getNotificationChannel(CHANNEL) == null) {
+            val name = context.getString(R.string.channel_missed)
+            val existing = manager.getNotificationChannel(CHANNEL)
+            if (existing == null) {
                 // Звук по умолчанию: пропущенный — не звонок, мелодия вызова тут не нужна.
                 manager.createNotificationChannel(
-                    NotificationChannel(CHANNEL, "SADO: пропущенные звонки", NotificationManager.IMPORTANCE_DEFAULT),
+                    NotificationChannel(CHANNEL, name, NotificationManager.IMPORTANCE_DEFAULT),
                 )
+            } else if (existing.name != name) {
+                // Язык телефона сменили — поправляем название канала.
+                existing.name = name
+                manager.createNotificationChannel(existing)
             }
         }
         // Обычный запуск окна, без метки службы: отвечать на звонок или показываться поверх блокировки оно не будет.
