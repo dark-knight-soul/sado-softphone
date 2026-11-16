@@ -169,6 +169,13 @@ class _Fr extends S {
   @override
   String get noSetupInClipboard => 'Aucun lien de configuration dans le presse-papiers';
   @override
+  String get scanHint => "Pointez l'appareil photo vers le QR code de votre administrateur";
+  @override
+  String get scanNotSetup => 'Ce QR code ne contient pas de lien de configuration SADO';
+  @override
+  String get scanNoCamera =>
+      "Pas d'accès à l'appareil photo. Autorisez-le dans les paramètres du téléphone ou scannez le code avec l'appareil photo du téléphone.";
+  @override
   String get signingIn => 'Connexion…';
   @override
   String get errAuth => 'Poste ou mot de passe incorrect';

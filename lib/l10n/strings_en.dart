@@ -167,6 +167,13 @@ class _En extends S {
   @override
   String get noSetupInClipboard => 'No setup link in the clipboard';
   @override
+  String get scanHint => 'Point the camera at the QR code from your administrator';
+  @override
+  String get scanNotSetup => 'This QR code has no SADO setup link';
+  @override
+  String get scanNoCamera =>
+      "No camera access. Allow it in phone settings, or point the phone's own camera at the code.";
+  @override
   String get signingIn => 'Connecting…';
   @override
   String get errAuth => 'Wrong extension or password';

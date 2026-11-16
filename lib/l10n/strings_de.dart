@@ -169,6 +169,13 @@ class _De extends S {
   @override
   String get noSetupInClipboard => 'Kein Einrichtungslink in der Zwischenablage';
   @override
+  String get scanHint => 'Kamera auf den QR-Code Ihres Administrators richten';
+  @override
+  String get scanNotSetup => 'Dieser QR-Code enthält keinen SADO-Einrichtungslink';
+  @override
+  String get scanNoCamera =>
+      'Kein Zugriff auf die Kamera. Erlauben Sie ihn in den Telefoneinstellungen oder scannen Sie den Code mit der Kamera-App.';
+  @override
   String get signingIn => 'Verbindung wird hergestellt…';
   @override
   String get errAuth => 'Falsche Nebenstelle oder falsches Passwort';

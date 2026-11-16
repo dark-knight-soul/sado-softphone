@@ -167,6 +167,13 @@ class _Tr extends S {
   @override
   String get noSetupInClipboard => 'Panoda kurulum bağlantısı yok';
   @override
+  String get scanHint => 'Kamerayı yöneticinizden aldığınız QR koda tutun';
+  @override
+  String get scanNotSetup => 'Bu QR kodda SADO kurulum bağlantısı yok';
+  @override
+  String get scanNoCamera =>
+      'Kamera erişimi yok. Telefon ayarlarından izin verin veya kodu telefonun kamerasıyla okutun.';
+  @override
   String get signingIn => 'Bağlanıyor…';
   @override
   String get errAuth => 'Dahili numara veya şifre yanlış';

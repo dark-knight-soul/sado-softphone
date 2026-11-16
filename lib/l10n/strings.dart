@@ -175,6 +175,15 @@ abstract class S {
   String get setupSignedIn;
   String get pasteSetup;
   String get noSetupInClipboard;
+
+  /// Сканер QR-кода: подсказка на экране камеры.
+  String get scanHint;
+
+  /// В прочитанном QR-коде нет ссылки настройки.
+  String get scanNotSetup;
+
+  /// Камеры нет или к ней не дали доступ.
+  String get scanNoCamera;
   String get signingIn;
   String get errAuth;
   String get errNetwork;

@@ -9,8 +9,10 @@ import 'package:sip_ua/sip_ua.dart' as sip;
 // ignore: implementation_imports
 import 'package:sip_ua/src/event_manager/refer_events.dart' as refer;
 
+import '../data/demo_data.dart';
 import '../state/account.dart';
 import 'call_engine.dart';
+import 'pidf.dart';
 
 /// Настоящие звонки: SIP поверх WebSocket (библиотека sip_ua), звук — WebRTC.
 ///
@@ -55,6 +57,20 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   /// Идёт перевод с консультацией (REFER отправлен, ждём итога от АТС); таймер — предел ожидания.
   Timer? _connectingTimer;
   bool get _connecting => _connectingTimer != null;
+
+  /// Номера, за статусами которых просили следить, и те из них, на которые подписка уже отправлена.
+  Set<String> _watched = const {};
+  final Set<String> _subscribed = {};
+
+  /// Больше стольких подписок не держим: каждая — это отдельный обмен с АТС раз в четверть часа
+  /// и уведомление при каждом звонке коллеги.
+  static const _presenceLimit = 60;
+
+  /// Подписки отправляем по одной с такой паузой: пачку запросов разом сервер перед АТС (например, Kamailio
+  /// с защитой от наплыва запросов) может принять за атаку и заблокировать адрес — вместе со звонками.
+  @visibleForTesting
+  static const subscribeGap = Duration(milliseconds: 500);
+  Timer? _subscribeTimer;
 
   /// Повтор регистрации после сбоя: sip_ua сама её не повторяет, пока соединение с сервером цело.
   Timer? _retryTimer;
@@ -128,6 +144,8 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   void _stop() {
     _retryTimer?.cancel();
     _retryTimer = null;
+    _subscribeTimer?.cancel();
+    _subscribeTimer = null;
     if (!_started) return;
     _started = false;
     _helper.stop();
@@ -146,6 +164,11 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
           // Связь пропала уже после подключения — sip_ua переподключается сама.
           link.value = LinkStatus.connecting;
         }
+        // Подписки на статусы с обрывом связи пропадают; после новой регистрации оформим их заново.
+        _subscribeTimer?.cancel();
+        _subscribeTimer = null;
+        _subscribed.clear();
+        if (presence.value.isNotEmpty) presence.value = const {};
       case sip.TransportStateEnum.CONNECTING:
         if (!link.value.isOnline) link.value = LinkStatus.connecting;
       case sip.TransportStateEnum.CONNECTED:
@@ -161,6 +184,7 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
         _retryTimer?.cancel();
         _retryDelay = _retryMin;
         _settle(LinkStatus.online);
+        _subscribeMissing();
       case sip.RegistrationStateEnum.REGISTRATION_FAILED:
         final code = state.cause?.status_code;
         final auth = code == 401 || code == 403 || code == 404;
@@ -820,8 +844,80 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   @override
   void onNewMessage(sip.SIPMessageRequest msg) {}
 
+  // ---- Статусы номеров ----
+
   @override
-  void onNewNotify(sip.Notify ntf) {}
+  void watchPresence(Set<String> numbers) {
+    _watched = numbers.where(isExtensionLike).take(_presenceLimit).toSet();
+    final kept = {
+      for (final e in presence.value.entries)
+        if (_watched.contains(e.key)) e.key: e.value,
+    };
+    if (kept.length != presence.value.length) presence.value = kept;
+    _subscribeMissing();
+  }
+
+  /// Отправляет подписки на номера, за которыми следим, но ещё не подписаны. Нужна регистрация на АТС.
+  ///
+  /// Отписаться от одного номера sip_ua не даёт (подписки снимаются все разом при отключении), поэтому
+  /// уведомления о номерах, за которыми следить перестали, просто пропускаем. Номер, на который АТС
+  /// подписку не приняла (у неё нет его статуса), до переподключения больше не спрашиваем.
+  void _subscribeMissing() {
+    // Очередь уже идёт — она сама дойдёт до новых номеров.
+    if (_subscribeTimer == null) _subscribeNext();
+  }
+
+  /// Отправляет одну подписку и назначает следующую через [subscribeGap].
+  void _subscribeNext() {
+    _subscribeTimer = null;
+    final account = _account;
+    if (account == null || !_started || !link.value.isOnline) return;
+    String? number;
+    for (final candidate in _watched) {
+      if (!_subscribed.contains(candidate)) {
+        number = candidate;
+        break;
+      }
+    }
+    if (number == null) return;
+    // Отмечаем сразу и не снимаем отметку при сбое: иначе очередь спрашивала бы этот номер без конца.
+    _subscribed.add(number);
+    try {
+      _helper.subscribe('sip:$number@${account.domain}', 'presence', 'application/pidf+xml');
+    } catch (_) {
+      // Подписку отправить не удалось — попробуем после следующего подключения.
+    }
+    _subscribeTimer = Timer(subscribeGap, _subscribeNext);
+  }
+
+  @override
+  void onNewNotify(sip.Notify ntf) {
+    final request = ntf.request;
+    if (request == null) return;
+    final event = '${request.getHeader('Event') ?? ''}'.toLowerCase();
+    if (!event.startsWith('presence')) return;
+    final number = request.from?.uri?.user;
+    if (number == null) return;
+    final state = '${request.getHeader('Subscription-State') ?? ''}'.toLowerCase();
+    if (state.startsWith('terminated')) {
+      // АТС закрыла подписку: статус больше не известен; при следующей регистрации подпишемся снова.
+      _subscribed.remove(number);
+      _setPresence(number, null);
+      return;
+    }
+    if (_watched.contains(number)) _setPresence(number, presenceFromPidf(request.body));
+  }
+
+  void _setPresence(String number, Presence? status) {
+    if (presence.value[number] == status) return;
+    final next = {...presence.value};
+    if (status == null) {
+      next.remove(number);
+    } else {
+      next[number] = status;
+    }
+    presence.value = next;
+  }
 
   @override
   void onNewReinvite(sip.ReInvite event) {}

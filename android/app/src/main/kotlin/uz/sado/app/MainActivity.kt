@@ -190,10 +190,38 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    /** Код запроса экрана сканера QR-кода. */
+    private val scanRequestCode = 10
+
+    /**
+     * Открывает сканер QR-кода с подсказкой [hint] и надписью кнопки закрытия [close].
+     * Ответ придёт в [onActivityResult]. Возвращает false, если экран открыть не удалось.
+     */
+    fun scanQr(hint: String, close: String): Boolean {
+        val intent = Intent(this, ScanActivity::class.java)
+            .putExtra(ScanActivity.EXTRA_HINT, hint)
+            .putExtra(ScanActivity.EXTRA_CLOSE, close)
+        return try {
+            startActivityForResult(intent, scanRequestCode)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     // Старый способ чтения адреса нужен до Android 13 — отсюда подавление предупреждения.
     @Suppress("DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == scanRequestCode) {
+            val status = when (resultCode) {
+                RESULT_OK -> "ok"
+                ScanActivity.RESULT_NO_CAMERA -> "denied"
+                else -> "cancelled"
+            }
+            SadoEngine.qrScanned(status, data?.getStringExtra(ScanActivity.EXTRA_TEXT))
+            return
+        }
         if (requestCode != ringtoneRequestCode) return
         // «Назад» в окне выбора — человек передумал, мелодия остаётся прежней.
         val picked = resultCode == RESULT_OK && data != null

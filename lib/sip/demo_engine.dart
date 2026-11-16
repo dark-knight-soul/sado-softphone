@@ -12,6 +12,12 @@ class DemoEngine extends CallEngine {
   }
 
   final Duration answerAfter;
+
+  /// За какими номерами просили следить — для тестов. Сами статусы тест пишет прямо в [presence].
+  Set<String> watchedNumbers = const {};
+
+  @override
+  void watchPresence(Set<String> numbers) => watchedNumbers = numbers;
   Timer? _answerTimer;
 
   /// Сколько входящих имитация отклонила «занято» (третий звонок, второй во время вызова) — для тестов.

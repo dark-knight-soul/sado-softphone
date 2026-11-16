@@ -65,6 +65,11 @@ abstract class CallKeeper {
   /// Открывает системный выбор мелодии; возвращает состояние после закрытия окна (прежнее, если передумали).
   Future<RingSettings> pickRingtone() async => const RingSettings();
 
+  /// Открывает сканер QR-кода (экран с камерой) и ждёт, пока код прочитан или экран закрыт.
+  /// [hint] — подсказка на экране сканера, [close] — надпись кнопки закрытия.
+  /// Там, где сканера нет (не Android), сразу отвечает [QrScanStatus.unavailable].
+  Future<QrScan> scanQr({required String hint, required String close}) async => const QrScan(QrScanStatus.unavailable);
+
   /// Включает или выключает вибрацию при входящем; возвращает новое состояние.
   Future<RingSettings> setRingVibration(bool on) async => const RingSettings();
 
@@ -225,6 +230,10 @@ class AndroidCallKeeper extends CallKeeper {
   Future<RingSettings> pickRingtone() async => RingSettings.fromMap(await _invoke<Object?>('pickRingtone'));
 
   @override
+  Future<QrScan> scanQr({required String hint, required String close}) async =>
+      QrScan.fromMap(await _invoke<Object?>('scanQr', {'hint': hint, 'close': close}));
+
+  @override
   Future<RingSettings> setRingVibration(bool on) async =>
       RingSettings.fromMap(await _invoke<Object?>('setRingVibration', on));
 
@@ -264,6 +273,40 @@ class AndroidCallKeeper extends CallKeeper {
 }
 
 /// Мелодия и вибрация входящих звонков, как их видит телефон.
+/// Чем закончилось сканирование QR-кода.
+enum QrScanStatus {
+  /// Код прочитан, его текст — в [QrScan.text].
+  ok,
+
+  /// Человек закрыл сканер.
+  cancelled,
+
+  /// Камеры нет или к ней не дали доступ.
+  denied,
+
+  /// Сканера на этой платформе нет.
+  unavailable,
+}
+
+class QrScan {
+  const QrScan(this.status, [this.text]);
+
+  /// Разбирает ответ телефона; непонятный ответ считаем «сканера нет».
+  factory QrScan.fromMap(Object? raw) {
+    if (raw is! Map) return const QrScan(QrScanStatus.unavailable);
+    final text = raw['text'];
+    return switch (raw['status']) {
+      'ok' when text is String && text.isNotEmpty => QrScan(QrScanStatus.ok, text),
+      'denied' => const QrScan(QrScanStatus.denied),
+      'ok' || 'cancelled' => const QrScan(QrScanStatus.cancelled),
+      _ => const QrScan(QrScanStatus.unavailable),
+    };
+  }
+
+  final QrScanStatus status;
+  final String? text;
+}
+
 class RingSettings {
   const RingSettings({this.title, this.vibrate = true});
 

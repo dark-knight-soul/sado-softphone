@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../l10n/strings.dart';
+import '../platform/call_keeper.dart';
 import '../sip/call_engine.dart';
 import '../state/session.dart';
 import '../state/setup_link.dart';
@@ -53,6 +54,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _fromLink = true;
       _error = null;
     });
+  }
+
+  void _say(String text) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  /// «Войти по QR-коду»: открываем сканер и переносим прочитанную ссылку настройки в поля.
+  /// Как и ссылка, код только заполняет форму — «Войти» человек нажимает сам.
+  Future<void> _scan() async {
+    final s = S.of(context);
+    final scan = await ref.read(callKeeperProvider).scanQr(hint: s.scanHint, close: s.cancel);
+    if (!mounted) return;
+    switch (scan.status) {
+      case QrScanStatus.ok:
+        final link = parseSetupLink(scan.text ?? '');
+        if (link == null) {
+          _say(s.scanNotSetup);
+        } else {
+          _applyLink(link);
+        }
+      case QrScanStatus.cancelled:
+        break;
+      case QrScanStatus.denied:
+        _say(s.scanNoCamera);
+      case QrScanStatus.unavailable:
+        // Сканера здесь нет (например, в браузере) — подсказываем прежний путь: обычная камера телефона.
+        _say(s.qrHint);
+    }
   }
 
   /// Запасной путь: камера только скопировала текст QR-кода — берём ссылку из буфера обмена.
@@ -224,8 +255,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 8),
                     TextButton.icon(
-                      // Своего сканера в приложении нет: QR-код читает обычная камера телефона и открывает SADO по ссылке.
-                      onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.qrHint))),
+                      key: const Key('login.qr'),
+                      onPressed: _busy ? null : _scan,
                       icon: Icon(SadoIcons.of(context).qr),
                       label: Text(s.signInQr),
                     ),

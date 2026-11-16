@@ -168,6 +168,13 @@ class _Uz extends S {
   @override
   String get noSetupInClipboard => 'Buferda sozlash havolasi yoʻq';
   @override
+  String get scanHint => 'Kamerani administrator bergan QR-kodga qarating';
+  @override
+  String get scanNotSetup => 'Bu QR-kodda SADO sozlash havolasi yoʻq';
+  @override
+  String get scanNoCamera =>
+      'Kameraga ruxsat yoʻq. Telefon sozlamalarida ruxsat bering yoki kodga telefon kamerasini qarating.';
+  @override
   String get signingIn => 'Ulanmoqda…';
   @override
   String get errAuth => 'Raqam yoki parol notoʻgʻri';

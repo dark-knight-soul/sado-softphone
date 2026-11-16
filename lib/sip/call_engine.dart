@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../data/demo_data.dart';
 import '../state/account.dart';
 
 /// Состояние связи с АТС.
@@ -195,6 +196,10 @@ abstract class CallEngine {
   /// Устройства вывода звука, доступные сейчас (пусто, пока звонка нет или платформа их не назвала).
   final ValueNotifier<List<AudioRoute>> routes = ValueNotifier(const []);
 
+  /// Статусы номеров, за которыми просили следить ([watchPresence]): свободен, говорит или не в сети.
+  /// Номера, про которые АТС ничего не сообщила, в словаре отсутствуют.
+  final ValueNotifier<Map<String, Presence>> presence = ValueNotifier(const {});
+
   final StreamController<CallFailureEvent> _failures = StreamController.broadcast();
 
   /// Сбои звонков («занято», «нет доступа к микрофону» и т. п.).
@@ -256,9 +261,14 @@ abstract class CallEngine {
   /// а в [failures] приходит [CallFailure.transfer].
   void connectCalls();
 
+  /// Следить за статусами этих номеров (список заменяет прежний). Итог приходит в [presence].
+  /// Движок, который статусов не знает, ничего не делает.
+  void watchPresence(Set<String> numbers) {}
+
   @mustCallSuper
   void dispose() {
     _failures.close();
+    presence.dispose();
     link.dispose();
     call.dispose();
     other.dispose();

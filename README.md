@@ -69,6 +69,7 @@ Wi-Fi or mobile data, with no SIM card involved.
 - Your own contact list stored on the phone: add, edit, delete, search
 - Save a number straight from the call history; names show up in history and on the call screen
 - Optionally show the phone's address book (read on the device each time, never copied or uploaded)
+- Colleague status next to your contacts — available, on a call or offline — when the PBX provides it
 
 ## Screenshots
 
@@ -96,7 +97,7 @@ Wi-Fi or mobile data, with no SIM card involved.
 
 1. Download the latest `.apk` from the [Releases](../../releases) page.
 2. Open it on the phone and allow installation from this source.
-3. Enter your server, extension number and password — or open a [setup link](#setup-link-for-administrators)
+3. Enter your server, extension number and password — or scan a QR code with a [setup link](#setup-link-for-administrators)
    from your administrator.
 
 For reliable incoming calls allow the app to run in the background: **More → Background calls**
@@ -106,8 +107,9 @@ Oppo, Vivo and others).
 ## Setup link for administrators
 
 Typing a server address and a password on a phone is the hardest part of setup. Give users a link instead —
-usually as a QR code (any QR generator will do). Scanned with the phone's ordinary camera, it opens SADO with the
-sign-in form filled in:
+usually as a QR code (any QR generator will do). The user taps **Sign in with QR code** on the sign-in screen
+and points the camera at it — or scans it with the phone's ordinary camera, which opens SADO. Either way the
+sign-in form is filled in:
 
 ```
 sado://login?server=pbx.example.com%3A8089%2Fws&number=1003&password=use-a-long-random-password
@@ -120,8 +122,8 @@ sado://login?server=pbx.example.com%3A8089%2Fws&number=1003&password=use-a-long-
 | `password` | no | If omitted, the user types it |
 
 Values must be URL-encoded. The link only fills in the form — the user still presses **Sign in**, so a link
-from a stranger cannot silently register the phone somewhere else. If the camera app merely copies the text,
-use **Paste setup link** on the sign-in screen. Remember that a QR code with a password in it is as sensitive
+from a stranger cannot silently register the phone somewhere else. A QR code that is not a SADO setup link is
+ignored. If a camera app merely copies the text, use **Paste setup link** on the sign-in screen. Remember that a QR code with a password in it is as sensitive
 as the password itself.
 
 ## What your PBX needs
@@ -135,6 +137,7 @@ SADO connects the same way a browser softphone does:
 | Codecs | Opus, G.722, PCMU or PCMA |
 | DTMF | RFC 2833 / RFC 4733 |
 | Reachability | The phone must reach the PBX directly (same network, VPN or public address) — no STUN/TURN is used |
+| Colleague status (optional) | `SUBSCRIBE` with `Event: presence`, `application/pidf+xml` (RFC 3856/3863); in Asterisk — a `hint` for each extension |
 
 Classic SIP over UDP/TCP/TLS is **not** supported — the server must offer a WebSocket transport.
 
@@ -177,6 +180,15 @@ max_contacts=1
 remove_existing=yes
 ```
 
+Optional — colleague status. A `hint` tells subscribers whether the extension is free, on a call or offline;
+it is looked up in the context of the subscribing endpoint (or in its `subscribe_context`):
+
+```ini
+; extensions.conf
+[internal]
+exten => 1003,hint,PJSIP/1003
+```
+
 In the app: **Server** `wss://pbx.example.com:8089/ws`, **Number** `1003`.
 If you type only a host name (`pbx.example.com`), the app uses `wss://pbx.example.com/ws`.
 </details>
@@ -192,6 +204,8 @@ WebRTC support (FreePBX, FreeSWITCH, OpenSIPS, …) should work; reports are wel
   The only exception is the **Check for updates** button in Settings: it asks GitHub for the latest release,
   and only when you tap it.
 - The phone's address book is read only if you turn that on, stays in memory and is never stored or sent anywhere.
+- The camera is used only by the QR scanner on the sign-in screen, while that screen is open. Frames are
+  decoded on the phone and are never saved or sent anywhere; without the permission everything else still works.
 - A `ws://` address is not encrypted — the sign-in screen warns about it. Use `wss://` whenever you can.
 - The web build exists for previewing the interface; a browser cannot protect a saved password the way
   Android does, so do not use it with real accounts.
@@ -242,7 +256,8 @@ Flutter · [`sip_ua`](https://pub.dev/packages/sip_ua) (SIP over WebSocket) ·
 [`flutter_webrtc`](https://pub.dev/packages/flutter_webrtc) (audio) ·
 [`flutter_riverpod`](https://pub.dev/packages/flutter_riverpod) (state) ·
 [`flutter_secure_storage`](https://pub.dev/packages/flutter_secure_storage) ·
-Kotlin foreground service for background calls and notifications.
+Kotlin foreground service for background calls and notifications ·
+CameraX and [ZXing](https://github.com/zxing/zxing) for the on-device QR scanner.
 
 ## License
 

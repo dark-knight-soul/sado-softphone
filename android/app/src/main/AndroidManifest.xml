@@ -22,8 +22,12 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- Попросить снять ограничение батареи, иначе в глубоком сне телефон отключает приложению сеть. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <!-- Микрофон нужен, но телефон без него (планшет) тоже подойдёт; камера не используется вовсе. -->
+    <!-- Камера — только для сканера QR-кода на экране входа; спрашивается, когда сканер открывают. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Микрофон нужен, но телефон без него (планшет) тоже подойдёт; без камеры приложение тоже работает. -->
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <application
         android:label="SADO"
         android:name="${applicationName}"
@@ -75,6 +79,12 @@
         </activity>
         <!-- Значки для рабочего стола. Включён всегда ровно один «псевдоним» главного окна;
              какой именно — выбирается в настройках приложения (SadoEngine.setAppIcon). -->
+        <!-- Сканер QR-кода для входа. Открывается только из самого приложения. -->
+        <activity
+            android:name=".ScanActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/ScanTheme" />
         <activity-alias
             android:name=".IconEmerald"
             android:targetActivity=".MainActivity"

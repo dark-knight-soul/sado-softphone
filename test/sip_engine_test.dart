@@ -30,6 +30,9 @@ class FakeRegistrar {
   String? lastUser;
   String? lastUserAgent;
 
+  /// Подписки на статусы: на какой адрес и когда пришли (сервер на них не отвечает — нам важен только темп).
+  final subscribes = <(String, DateTime)>[];
+
   int get port => _server.port;
 
   static Future<FakeRegistrar> start({required String password}) async {
@@ -49,6 +52,7 @@ class FakeRegistrar {
   String? _handle(String message) {
     final lines = message.split('\r\n');
     final start = lines.first.split(' ');
+    if (start.length >= 3 && start[0] == 'SUBSCRIBE') subscribes.add((start[1], DateTime.now()));
     if (start.length < 3 || start[0] != 'REGISTER') return null;
     registers++;
     final uri = start[1];
@@ -118,6 +122,31 @@ void main() {
     // Первый REGISTER без пароля, второй — с ответом на запрос сервера.
     expect(registrar.registers, 2);
     expect(registrar.lastUserAgent, startsWith('Sado-Mobile/'));
+  });
+
+  test('подписки на статусы уходят по одной с паузой, а не пачкой', () async {
+    expect(await engine.connect(account(), 'right-password').timeout(const Duration(seconds: 20)), LinkStatus.online);
+
+    // Внешний номер и буквы в подписку не попадают вовсе.
+    engine.watchPresence({'1001', '1002', '+998901234567', 'reception', '1003'});
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(registrar.subscribes, hasLength(1), reason: 'первая подписка уходит сразу, остальные ждут очереди');
+
+    await Future<void>.delayed(SipEngine.subscribeGap * 2.5);
+    expect(
+      [for (final s in registrar.subscribes) s.$1],
+      ['sip:1001@127.0.0.1', 'sip:1002@127.0.0.1', 'sip:1003@127.0.0.1'],
+    );
+    for (var i = 1; i < registrar.subscribes.length; i++) {
+      final gap = registrar.subscribes[i].$2.difference(registrar.subscribes[i - 1].$2);
+      // Небольшой запас на неточность таймеров.
+      expect(gap, greaterThan(SipEngine.subscribeGap * 0.8), reason: 'между подписками $i-1 и $i');
+    }
+
+    // Повторная просьба следить за теми же номерами новых подписок не порождает.
+    engine.watchPresence({'1001', '1002', '1003'});
+    await Future<void>.delayed(SipEngine.subscribeGap * 1.5);
+    expect(registrar.subscribes, hasLength(3));
   });
 
   test('неверный пароль: отказ с причиной «вход», без бесконечных повторов', () async {

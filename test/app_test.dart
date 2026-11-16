@@ -48,6 +48,15 @@ class RecordingKeeper extends CallKeeper {
     return number;
   }
 
+  /// Что «ответит сканер» QR-кода; тест задаёт это перед нажатием кнопки.
+  QrScan scanAnswer = const QrScan(QrScanStatus.unavailable);
+
+  @override
+  Future<QrScan> scanQr({required String hint, required String close}) async {
+    log.add('scan: $hint | $close');
+    return scanAnswer;
+  }
+
   /// Ссылка настройки, «пришедшая» до запуска; задаётся в [pendingSetupOnStart] до pumpApp.
   String? pendingSetup = pendingSetupOnStart;
 

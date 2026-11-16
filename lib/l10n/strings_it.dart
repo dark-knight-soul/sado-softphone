@@ -168,6 +168,13 @@ class _It extends S {
   @override
   String get noSetupInClipboard => 'Nessun link di configurazione negli appunti';
   @override
+  String get scanHint => "Inquadra il codice QR ricevuto dall'amministratore";
+  @override
+  String get scanNotSetup => 'Questo codice QR non contiene un link di configurazione SADO';
+  @override
+  String get scanNoCamera =>
+      'Nessun accesso alla fotocamera. Consentilo nelle impostazioni del telefono o inquadra il codice con la fotocamera del telefono.';
+  @override
   String get signingIn => 'Connessione…';
   @override
   String get errAuth => 'Interno o password errati';

@@ -169,6 +169,13 @@ class _Es extends S {
   @override
   String get noSetupInClipboard => 'No hay ningún enlace de configuración en el portapapeles';
   @override
+  String get scanHint => 'Apunta la cámara al código QR de tu administrador';
+  @override
+  String get scanNotSetup => 'Este código QR no contiene un enlace de configuración de SADO';
+  @override
+  String get scanNoCamera =>
+      'Sin acceso a la cámara. Permítelo en los ajustes del teléfono o apunta al código con la cámara del teléfono.';
+  @override
   String get signingIn => 'Conectando…';
   @override
   String get errAuth => 'Extensión o contraseña incorrecta';

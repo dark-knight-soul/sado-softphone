@@ -69,3 +69,15 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Сканер QR-кода для входа: камера (CameraX) и разбор кода (ZXing). Обе библиотеки открытые,
+    // работают на самом телефоне и не требуют сервисов Google.
+    val camerax = "1.6.2"
+    implementation("androidx.camera:camera-core:$camerax")
+    implementation("androidx.camera:camera-camera2:$camerax")
+    implementation("androidx.camera:camera-lifecycle:$camerax")
+    implementation("androidx.camera:camera-view:$camerax")
+    implementation("com.google.zxing:core:3.5.4")
+    testImplementation("junit:junit:4.13.2")
+}

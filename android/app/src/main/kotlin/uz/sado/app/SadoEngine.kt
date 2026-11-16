@@ -127,6 +127,7 @@ object SadoEngine {
             }
             "ringSettings" -> result.success(IncomingRing.state(app))
             "pickRingtone" -> pickRingtone(app, result)
+            "scanQr" -> scanQr(call.argument<String>("hint") ?: "", call.argument<String>("close") ?: "", result)
             "setRingVibration" -> {
                 IncomingRing.setVibrate(app, call.arguments as? Boolean ?: true)
                 result.success(IncomingRing.state(app))
@@ -191,6 +192,24 @@ object SadoEngine {
      * пока открыт выбор, Android может пересоздать окно, а результат придёт уже новому.
      */
     private var ringtoneResult: MethodChannel.Result? = null
+
+    /** Ответ Dart, ждущий закрытия сканера QR-кода (хранится здесь по той же причине, что и [ringtoneResult]). */
+    private var scanResult: MethodChannel.Result? = null
+
+    /** Открывает сканер QR-кода; ответ Dart — словарь «status» (ok, cancelled, denied) и «text». */
+    private fun scanQr(hint: String, close: String, result: MethodChannel.Result) {
+        // Прошлый вопрос остался без ответа — закрываем его, чтобы Dart не ждал вечно.
+        scanResult?.success(mapOf("status" to "cancelled"))
+        scanResult = result
+        if (activity?.get()?.scanQr(hint, close) != true) qrScanned("denied", null)
+    }
+
+    /** Сканер закрылся. Ответ Dart отправляется ровно один раз. */
+    fun qrScanned(status: String, text: String?) {
+        val result = scanResult ?: return
+        scanResult = null
+        result.success(mapOf("status" to status, "text" to text))
+    }
 
     /** Открывает системный выбор мелодии звонка; ответ Dart — состояние после закрытия окна. */
     private fun pickRingtone(app: Context, result: MethodChannel.Result) {

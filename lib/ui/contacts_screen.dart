@@ -6,6 +6,7 @@ import '../data/demo_data.dart';
 import '../l10n/strings.dart';
 import '../platform/phone_contacts.dart';
 import '../state/call.dart';
+import '../state/contact_status.dart';
 import '../state/contacts.dart';
 import '../state/home_filter.dart';
 import '../state/session.dart';
@@ -91,7 +92,14 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
     final canOfferPhone = phoneContactsAvailable(ref.watch(sessionProvider));
     final phoneOn = ref.watch(settingsProvider.select((s) => s.phoneContacts));
     void dial(Contact c) => ref.read(callProvider.notifier).dial(c.number, name: c.name);
-    Widget rowOf(Contact c) => _ContactRow(contact: c, onCall: () => dial(c), onLongPress: () => _menu(c));
+    // Статусы от АТС (свободен, говорит, не в сети); у образца для знакомства они записаны в самих контактах.
+    final statuses = ref.watch(contactStatusProvider);
+    Widget rowOf(Contact c) => _ContactRow(
+      contact: c,
+      presence: statuses[c.number] ?? c.presence,
+      onCall: () => dial(c),
+      onLongPress: () => _menu(c),
+    );
     final phoneButton = canOfferPhone && !phoneOn
         ? Align(
             alignment: Alignment.centerLeft,
@@ -193,9 +201,12 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
 }
 
 class _ContactRow extends StatelessWidget {
-  const _ContactRow({required this.contact, required this.onCall, this.onLongPress});
+  const _ContactRow({required this.contact, required this.onCall, this.onLongPress, this.presence});
 
   final Contact contact;
+
+  /// Статус номера, если он известен; иначе под именем показываем просто номер.
+  final Presence? presence;
   final VoidCallback onCall;
 
   /// Нет у контактов из телефона: их здесь не изменить.
@@ -206,8 +217,7 @@ class _ContactRow extends StatelessWidget {
     final s = S.of(context);
     final p = SadoStyle.of(context).palette;
     final ic = SadoIcons.of(context);
-    // Статус есть только у сотрудников из образца; у своих контактов показываем просто номер.
-    final (String? status, Color color) = switch (contact.presence) {
+    final (String? status, Color color) = switch (presence) {
       Presence.free => (s.statusFree, p.success),
       Presence.busy => (s.statusBusy, p.danger),
       Presence.offline => (s.statusOffline, p.muted),

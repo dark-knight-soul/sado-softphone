@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:sado/app.dart';
 import 'package:sado/l10n/strings.dart';
+import 'package:sado/platform/call_keeper.dart';
 import 'package:sado/sip/call_engine.dart';
 import 'package:sado/state/session.dart';
 import 'package:sado/state/setup_link.dart';
@@ -148,6 +149,70 @@ void main() {
     expect(find.byKey(const Key('login.submit')), findsOneWidget);
     expect(_container(tester).read(sessionProvider), isNull);
     expect(_container(tester).read(setupRequestProvider), isNull);
+  });
+
+  test('ответ сканера: понятный разбирается, непонятный считается «сканера нет»', () {
+    expect(QrScan.fromMap({'status': 'ok', 'text': 'abc'}).status, QrScanStatus.ok);
+    expect(QrScan.fromMap({'status': 'ok', 'text': 'abc'}).text, 'abc');
+    // «Прочитано», но текста нет — считаем, что человек ничего не отсканировал.
+    expect(QrScan.fromMap({'status': 'ok', 'text': ''}).status, QrScanStatus.cancelled);
+    expect(QrScan.fromMap({'status': 'ok'}).status, QrScanStatus.cancelled);
+    expect(QrScan.fromMap({'status': 'cancelled'}).status, QrScanStatus.cancelled);
+    expect(QrScan.fromMap({'status': 'denied'}).status, QrScanStatus.denied);
+    expect(QrScan.fromMap(null).status, QrScanStatus.unavailable);
+    expect(QrScan.fromMap('ok').status, QrScanStatus.unavailable);
+    expect(QrScan.fromMap({'status': 'что-то новое'}).status, QrScanStatus.unavailable);
+  });
+
+  Future<void> scan(WidgetTester tester, QrScan answer) async {
+    keeper.scanAnswer = answer;
+    await tester.ensureVisible(find.byKey(const Key('login.qr')));
+    await tester.tap(find.byKey(const Key('login.qr')));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('сканер: QR-код со ссылкой настройки заполняет форму, но не входит', (tester) async {
+    await pumpApp(tester, saved: {'lang': 'ru'});
+    await scan(tester, const QrScan(QrScanStatus.ok, _full));
+    // Сканеру переданы подсказка и надпись кнопки на языке приложения.
+    expect(keeper.log, contains('scan: Наведите камеру на QR-код от администратора | Отмена'));
+    expect(_field(tester, 'login.server'), 'wss://pbx.example.com:8089/ws');
+    expect(_field(tester, 'login.number'), '1004');
+    expect(_field(tester, 'login.password'), 'p+ss w%rd');
+    expect(find.byKey(const Key('login.fromLink')), findsOneWidget);
+    expect(find.byKey(const Key('login.submit')), findsOneWidget);
+    expect(_container(tester).read(sessionProvider), isNull);
+  });
+
+  testWidgets('сканер: посторонний QR-код ничего не заполняет и объясняет почему', (tester) async {
+    await pumpApp(tester, saved: {'lang': 'ru'});
+    for (final text in [
+      'https://example.com/promo',
+      'sado://login?server=http://evil.test&number=1',
+      'WIFI:S:office;;',
+    ]) {
+      await scan(tester, QrScan(QrScanStatus.ok, text));
+      expect(find.text('В этом QR-коде нет ссылки настройки SADO'), findsOneWidget, reason: text);
+      expect(_field(tester, 'login.server'), '', reason: text);
+      expect(find.byKey(const Key('login.fromLink')), findsNothing, reason: text);
+    }
+  });
+
+  testWidgets('сканер: отказ в камере, отмена и отсутствие сканера', (tester) async {
+    await pumpApp(tester, saved: {'lang': 'ru'});
+    await scan(tester, const QrScan(QrScanStatus.denied));
+    expect(find.textContaining('Нет доступа к камере'), findsOneWidget);
+
+    // Человек просто закрыл сканер — ничего не говорим и не меняем.
+    ScaffoldMessenger.of(tester.element(find.byKey(const Key('login.qr')))).clearSnackBars();
+    await tester.pumpAndSettle();
+    await scan(tester, const QrScan(QrScanStatus.cancelled));
+    expect(find.byType(SnackBar), findsNothing);
+    expect(_field(tester, 'login.server'), '');
+
+    // Сканера нет (не Android) — прежняя подсказка про обычную камеру телефона.
+    await scan(tester, const QrScan(QrScanStatus.unavailable));
+    expect(find.textContaining('Наведите камеру телефона на QR-код'), findsOneWidget);
   });
 
   testWidgets('недействительная ссылка ничего не меняет', (tester) async {

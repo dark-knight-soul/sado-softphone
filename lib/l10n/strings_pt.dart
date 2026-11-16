@@ -168,6 +168,13 @@ class _Pt extends S {
   @override
   String get noSetupInClipboard => 'Nenhum link de configuração na área de transferência';
   @override
+  String get scanHint => 'Aponte a câmera para o QR code do seu administrador';
+  @override
+  String get scanNotSetup => 'Este QR code não contém um link de configuração do SADO';
+  @override
+  String get scanNoCamera =>
+      'Sem acesso à câmera. Permita nas configurações do celular ou aponte a câmera do celular para o código.';
+  @override
   String get signingIn => 'Conectando…';
   @override
   String get errAuth => 'Ramal ou senha incorretos';

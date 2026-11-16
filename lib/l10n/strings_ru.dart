@@ -167,6 +167,13 @@ class _Ru extends S {
   @override
   String get noSetupInClipboard => 'В буфере обмена нет ссылки настройки';
   @override
+  String get scanHint => 'Наведите камеру на QR-код от администратора';
+  @override
+  String get scanNotSetup => 'В этом QR-коде нет ссылки настройки SADO';
+  @override
+  String get scanNoCamera =>
+      'Нет доступа к камере. Разрешите его в настройках телефона или наведите на код обычную камеру.';
+  @override
   String get signingIn => 'Подключение…';
   @override
   String get errAuth => 'Неверный номер или пароль';
