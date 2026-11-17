@@ -27,9 +27,11 @@ object QrDecoder {
     /**
      * Собирает яркость кадра в сплошной массив [width]×[height].
      * В кадре камеры строка может быть длиннее ширины ([rowStride]) — хвосты строк отбрасываем.
+     * [reuse] — массив от прошлого кадра: если он подходит по размеру, пишем в него, чтобы не выделять
+     * почти мегабайт памяти на каждый кадр.
      */
-    fun luminance(plane: ByteBuffer, rowStride: Int, width: Int, height: Int): ByteArray {
-        val data = ByteArray(width * height)
+    fun luminance(plane: ByteBuffer, rowStride: Int, width: Int, height: Int, reuse: ByteArray? = null): ByteArray {
+        val data = if (reuse != null && reuse.size == width * height) reuse else ByteArray(width * height)
         val start = plane.position()
         if (rowStride == width) {
             plane.get(data, 0, minOf(plane.remaining(), data.size))

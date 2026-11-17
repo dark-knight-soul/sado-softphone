@@ -41,7 +41,7 @@ class PushService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        // Google сменил адрес телефона — приложение должно сообщить АТС новый.
-        SadoEngine.send("pushToken", token)
+        // Google сменил адрес телефона — приложение должно сообщить АТС новый, даже если оно сейчас спит.
+        SadoEngine.pushTokenChanged(applicationContext)
     }
 }

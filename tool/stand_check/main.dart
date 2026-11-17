@@ -24,6 +24,9 @@ const _domain = String.fromEnvironment('SADO_STAND_DOMAIN');
 /// Номер на АТС, который сам отвечает и держит разговор (эхо-тест).
 const _echo = String.fromEnvironment('SADO_STAND_ECHO', defaultValue: '*43');
 
+/// АТС показывает коллегам «спящий» номер с адресом push как свободный — проверять и это.
+const _pushHint = String.fromEnvironment('SADO_STAND_PUSH_HINT') == '1';
+
 final _lines = <String>[];
 final _shown = ValueNotifier<int>(0);
 
@@ -357,10 +360,28 @@ Future<void> _run() async {
     await _until('звонок завершён', () => engine.call.value == null);
 
     await engine.sleep();
-    await _untilAsk('после «уснуть» регистрации на АТС нет', 'contact', (reply) => reply.trim().isEmpty);
+    // «Уснуть» само дожидается ответа АТС: сразу после него регистрации уже нет, без всякого ожидания.
+    final left = await _ask('contact');
+    if (left.trim().isNotEmpty) throw StateError('«уснуть» вернулось, а регистрация на АТС ещё есть: $left');
+    if (_pushHint) {
+      // АТС запомнила адрес: регистрации нет, но для коллег номер «свободен» — его разбудят.
+      await _untilAsk('спящий номер с адресом push виден коллегам как свободный', 'hint', (reply) {
+        return reply.contains('State:Idle');
+      });
+    }
     // Возвращаемся на связь без параметров push — как в обычном режиме.
     final back = await engine.connect(account, _password, keepTrying: true).timeout(const Duration(seconds: 20));
     if (back != LinkStatus.online) throw StateError('не удалось вернуться на связь: $back');
+    if (_pushHint) {
+      // Выход из учётной записи: обычную регистрацию снимаем сразу, не дав ей прожить и секунды. АТС должна
+      // заметить даже такую короткую регистрацию и забыть адрес: без регистрации номер снова «не в сети».
+      await engine.sleep();
+      await _untilAsk('после обычной регистрации спящий номер «не в сети»', 'hint', (reply) {
+        return reply.contains('State:Unavailable');
+      });
+      final again = await engine.connect(account, _password, keepTrying: true).timeout(const Duration(seconds: 20));
+      if (again != LinkStatus.online) throw StateError('не удалось вернуться на связь: $again');
+    }
     await _untilAsk('обычная регистрация без параметров push', 'contact', (reply) {
       return reply.trim().isNotEmpty && !reply.contains('pn-prid');
     });

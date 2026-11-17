@@ -30,6 +30,9 @@ class FakeRegistrar {
   String? lastUser;
   String? lastUserAgent;
 
+  /// Срок из последнего REGISTER («0» — снятие регистрации).
+  String? lastExpires;
+
   /// Подписки на статусы: на какой адрес и когда пришли (сервер на них не отвечает — нам важен только темп).
   final subscribes = <(String, DateTime)>[];
 
@@ -63,6 +66,7 @@ class FakeRegistrar {
       if (i > 0) headers[line.substring(0, i).trim().toLowerCase()] = line.substring(i + 1).trim();
     }
     lastUserAgent = headers['user-agent'];
+    lastExpires = headers['expires'] ?? RegExp(r'expires=(\d+)').firstMatch(headers['contact'] ?? '')?.group(1);
 
     String response(String status, [List<String> extra = const []]) => [
       'SIP/2.0 $status',
@@ -148,6 +152,42 @@ void main() {
     await Future<void>.delayed(SipEngine.subscribeGap * 1.5);
     expect(registrar.subscribes, hasLength(3));
   });
+
+  test('«уснуть» дожидается, пока АТС подтвердит снятие регистрации', () async {
+    expect(await engine.connect(account(), 'right-password').timeout(const Duration(seconds: 20)), LinkStatus.online);
+    final before = registrar.registers;
+
+    final watch = Stopwatch()..start();
+    await engine.sleep();
+    watch.stop();
+
+    // К моменту возврата запрос на снятие регистрации уже дошёл до сервера (и сервер на него ответил).
+    expect(registrar.registers, greaterThan(before));
+    expect(registrar.lastExpires, '0');
+    expect(engine.link.value, LinkStatus.offline);
+    // Ответ пришёл — ждать весь отведённый срок незачем.
+    expect(watch.elapsed, lessThan(const Duration(seconds: 4)));
+
+    // После сна можно вернуться на связь тем же движком.
+    expect(await engine.connect(account(), 'right-password').timeout(const Duration(seconds: 20)), LinkStatus.online);
+  });
+
+  test('повторное подключение не оставляет первое ждать вечно', () async {
+    final first = engine.connect(account(), 'right-password');
+    final second = engine.connect(account(), 'right-password');
+    // Первое отменено вторым и узнаёт об этом сразу, а не висит без конца.
+    expect(await first.timeout(const Duration(seconds: 2)), LinkStatus.offline);
+    expect(await second.timeout(const Duration(seconds: 20)), LinkStatus.online);
+  });
+
+  test('«уснуть» посреди подключения: ожидавший итога получает ответ, связь остаётся «не на связи»', () async {
+    final pending = engine.connect(account(), 'right-password', keepTrying: true);
+    await engine.sleep();
+    expect(await pending.timeout(const Duration(seconds: 2)), anyOf(LinkStatus.offline, LinkStatus.online));
+    // Таймер прежнего подключения не должен позже объявить «сбой сети».
+    await Future<void>.delayed(const Duration(seconds: 13));
+    expect(engine.link.value, LinkStatus.offline);
+  }, timeout: const Timeout(Duration(seconds: 40)));
 
   test('неверный пароль: отказ с причиной «вход», без бесконечных повторов', () async {
     final result = await engine.connect(account(), 'wrong-password').timeout(const Duration(seconds: 20));

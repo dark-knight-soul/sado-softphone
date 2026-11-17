@@ -85,6 +85,16 @@ String _service() => keeper.log.lastWhere(
   orElse: () => '',
 );
 
+/// Движок, у которого подключение «идёт», но регистрации всё нет (сеть ещё не поднялась).
+class _SlowEngine extends DemoEngine {
+  @override
+  Future<LinkStatus> connect(Account account, String password, {bool keepTrying = false, PushInfo? push}) async {
+    connectedWith.add(push);
+    link.value = LinkStatus.connecting;
+    return LinkStatus.connecting;
+  }
+}
+
 void main() {
   testWidgets('режим включён: на АТС уходят сведения о push; пока приложение на экране, оно на связи', (tester) async {
     final engine = await _start(tester);
@@ -197,6 +207,79 @@ void main() {
     expect(_container(tester).read(pushAsleepProvider), isFalse);
     expect(engine.link.value.isOnline, isTrue);
     expect(_service(), startsWith('standby'));
+  });
+
+  testWidgets('пока АТС не подтвердила регистрацию, приложение не засыпает (но и не ждёт вечно)', (tester) async {
+    pushOnStart = _info;
+    addTearDown(() {
+      pushOnStart = null;
+      _lifecycle(tester, AppLifecycleState.resumed);
+    });
+    if (tester.binding.lifecycleState == null) {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    }
+    // Сеть ещё не поднялась: подключение идёт, но регистрации нет.
+    final engine = _SlowEngine();
+    await pumpApp(tester, saved: {...realAccount, 'pushWake': true}, savedPassword: 'secret', engine: (_) => engine);
+    await _hide(tester);
+    await tester.pump(const Duration(seconds: 60));
+    expect(engine.sleeps, 0, reason: 'АТС ещё не знает адреса для push — уходить со связи рано');
+    expect(_service(), startsWith('standby'));
+
+    // Регистрация наконец прошла — теперь можно спать.
+    engine.link.value = LinkStatus.online;
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pump(_farewell);
+    expect(engine.sleeps, 1);
+    expect(_service(), 'hide');
+  });
+
+  testWidgets('сервер недоступен: через две минуты приложение всё же уходит со связи', (tester) async {
+    pushOnStart = _info;
+    addTearDown(() {
+      pushOnStart = null;
+      _lifecycle(tester, AppLifecycleState.resumed);
+    });
+    if (tester.binding.lifecycleState == null) {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    }
+    final engine = _SlowEngine();
+    await pumpApp(tester, saved: {...realAccount, 'pushWake': true}, savedPassword: 'secret', engine: (_) => engine);
+    await _hide(tester);
+    await tester.pump(const Duration(seconds: 100));
+    expect(engine.sleeps, 0);
+    await tester.pump(const Duration(seconds: 30));
+    await tester.pump(_farewell);
+    expect(engine.sleeps, 1);
+  });
+
+  testWidgets('адрес для push сменился во время разговора: АТС узнаёт его сразу после звонка', (tester) async {
+    final engine = await _start(tester);
+    await tester.tap(find.byKey(const Key('tab.0')));
+    await tester.pumpAndSettle();
+    await callAndAnswer(tester, '1002');
+    const fresh = PushInfo(provider: 'fcm', project: 'my-pbx', token: 'device-token-2');
+    keeper.push = fresh;
+    keeper.onPushTokenChanged!();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(engine.connectedWith, [_info], reason: 'во время разговора связь не трогаем');
+
+    engine.hangUp();
+    await tester.pumpAndSettle();
+    expect(engine.connectedWith, [_info, fresh]);
+    expect(engine.link.value.isOnline, isTrue);
+  });
+
+  testWidgets('телефон не сразу отдал сведения о push: приложение спрашивает снова', (tester) async {
+    // Режим выбран, но сервисы Google ещё не ответили.
+    final engine = await _start(tester, push: null);
+    expect(engine.connectedWith, [null]);
+    keeper.push = _info;
+    await tester.pump(const Duration(seconds: 16));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(_container(tester).read(pushInfoProvider), _info);
+    expect(engine.connectedWith, [null, _info]);
   });
 
   testWidgets('режим выключен: приложение на связи постоянно и про push АТС не сообщает', (tester) async {

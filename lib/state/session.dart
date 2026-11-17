@@ -169,7 +169,8 @@ class SessionController extends Notifier<Account?> {
     final engine = _engine;
     final account = state;
     if (engine == null || account == null || account.isDemo || push == _push) return;
-    if (engine.call.value != null || engine.other.value != null) return; // во время звонка связь не трогаем
+    // Во время звонка связь не трогаем: после него управление сном вызовет этот способ ещё раз.
+    if (engine.call.value != null || engine.other.value != null) return;
     await sleep();
     await _connectSaved(engine, account);
   }

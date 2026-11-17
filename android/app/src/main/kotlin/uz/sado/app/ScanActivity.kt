@@ -60,6 +60,9 @@ class ScanActivity : ComponentActivity() {
     @Volatile
     private var done = false
 
+    /** Яркость прошлого кадра: массив переиспользуется (кадры разбирает один поток). */
+    private var frame: ByteArray? = null
+
     /** Счётчик кадров: каждый третий проверяем ещё и «наоборот» (светлый код на тёмном фоне). */
     private var frames = 0
 
@@ -162,7 +165,13 @@ class ScanActivity : ComponentActivity() {
                 analysisExecutor = executor
                 analysis.setAnalyzer(executor, ::analyze)
                 provider.unbindAll()
-                provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, previewCase, analysis)
+                // Обычно код снимают задней камерой; на устройстве только с передней (планшет) берём её.
+                val camera = if (provider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA)) {
+                    CameraSelector.DEFAULT_BACK_CAMERA
+                } else {
+                    CameraSelector.DEFAULT_FRONT_CAMERA
+                }
+                provider.bindToLifecycle(this, camera, previewCase, analysis)
             } catch (e: Exception) {
                 // Камеры нет, она занята другим приложением или не открылась.
                 finishWithoutCamera()
@@ -175,7 +184,8 @@ class ScanActivity : ComponentActivity() {
         image.use {
             if (done) return
             val plane = image.planes.firstOrNull() ?: return
-            val data = QrDecoder.luminance(plane.buffer, plane.rowStride, image.width, image.height)
+            val data = QrDecoder.luminance(plane.buffer, plane.rowStride, image.width, image.height, frame)
+            frame = data
             val inverted = ++frames % 3 == 0
             val text = QrDecoder.decode(data, image.width, image.height, inverted) ?: return
             done = true

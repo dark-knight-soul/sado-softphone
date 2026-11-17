@@ -18,6 +18,8 @@
   SADO_STAND_ASTERISK   как вызвать консоль Asterisk; по умолчанию «asterisk -rx»
                         (например: «wsl.exe -u root asterisk -rx» или «ssh pbx asterisk -rx»)
   SADO_STAND_CHROME     путь к Chrome, если он не найден сам
+  SADO_STAND_PUSH_HINT  поставьте 1, если АТС показывает коллегам «спящий» номер с адресом push как свободный
+                        (тогда проверяется и это: статус номера во сне и после выключения режима)
 
 Запуск из корня проекта:  python tool/stand_check/run.py
 
@@ -99,6 +101,14 @@ def contact():
     return '\n'.join(lines)
 
 
+def hint():
+    """Строка о нашем номере из списка подсказок состояния («State:Idle», «State:Unavailable» и т. п.)."""
+    for line in asterisk('core show hints').splitlines():
+        if line.startswith('%s@' % NUMBER):
+            return ' '.join(line.split())
+    return ''
+
+
 def hangup_mine():
     for name in channels(True) + channels(False):
         asterisk('channel request hangup %s' % name)
@@ -115,6 +125,8 @@ COMMANDS = {
     'hangup-mine': hangup_mine,
     # Адрес, под которым наш номер сейчас зарегистрирован на АТС (пусто — регистрации нет).
     'contact': lambda: contact(),
+    # Как АТС сейчас показывает наш номер подписчикам на статус (строка из списка подсказок).
+    'hint': lambda: hint(),
 }
 
 results = []
@@ -227,6 +239,7 @@ def build():
         'SADO_STAND_PASSWORD': password(),
         'SADO_STAND_DOMAIN': os.environ.get('SADO_STAND_DOMAIN', ''),
         'SADO_STAND_ECHO': os.environ.get('SADO_STAND_ECHO', '*43'),
+        'SADO_STAND_PUSH_HINT': os.environ.get('SADO_STAND_PUSH_HINT', ''),
     }
     # Пароль передаём сборке файлом, а не в командной строке; файл сразу удаляем.
     handle, path = tempfile.mkstemp(suffix='.json')

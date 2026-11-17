@@ -335,6 +335,14 @@ Kaynak kodu, kurulum kılavuzu ve sorun bildirimi: %s''' % LINK,
 
 # Что нового по версиям: код версии — это versionCode APK для arm64 (2000 + номер сборки из pubspec.yaml).
 CHANGELOGS = {
+    '2007': {
+        'en-US': '''• QR scanner: works on devices that only have a front camera, uses less memory, and no longer reports a failed start as a missing camera permission
+• Reconnecting to the PBX right after a disconnect is more reliable
+• Fixes for the experimental "Wake on call" mode (builds with Google push only)''',
+        'ru-RU': '''• Сканер QR-кода: работает на устройствах только с передней камерой, расходует меньше памяти и не выдаёт сбой запуска за отказ в доступе к камере
+• Повторное подключение к АТС сразу после отключения стало надёжнее
+• Исправления пробного режима «Будить по звонку» (только в сборках с push от Google)''',
+    },
     '2006': {
         'en-US': '''• The download is half the size: about 17 MB instead of 34
 • Ending a call is more reliable

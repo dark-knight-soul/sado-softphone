@@ -12,22 +12,45 @@ import 'settings.dart';
 /// Как АТС может разбудить этот телефон push-уведомлением; null — push здесь нет (сборка без сервисов
 /// Google, телефон без них, не Android). Спрашивается у телефона при запуске и когда адрес сменился.
 class PushInfoController extends Notifier<PushInfo?> {
+  /// Через сколько спрашивать снова, если режим выбран, а телефон сведений не дал (например, сервисы Google
+  /// ещё не проснулись после включения телефона). После последней попытки ждём до следующего запуска.
+  static const retryAfter = [Duration(seconds: 15), Duration(minutes: 1), Duration(minutes: 5)];
+
+  Timer? _retry;
+  int _attempt = 0;
+
   @override
   PushInfo? build() {
     final keeper = ref.watch(callKeeperProvider);
     keeper.onPushTokenChanged = () => unawaited(refresh());
+    ref.onDispose(() => _retry?.cancel());
+    // Режим включили — сведения нужны сейчас, даже если прошлые попытки кончились.
+    ref.listen(settingsProvider.select((s) => s.pushWake), (_, on) {
+      if (on && state == null) unawaited(refresh());
+    });
     unawaited(refresh());
     return null;
   }
 
   Future<void> refresh() async {
+    _retry?.cancel();
+    _attempt = 0;
+    await _ask();
+  }
+
+  Future<void> _ask() async {
     PushInfo? info;
     try {
       info = await ref.read(callKeeperProvider).pushInfo().timeout(const Duration(seconds: 6));
     } catch (_) {
       info = null; // телефон не ответил — считаем, что push нет
     }
-    if (ref.mounted && info != state) state = info;
+    if (!ref.mounted) return;
+    if (info != state) state = info;
+    // Повторяем, только если режим выбран: там, где push нет вовсе, спрашивать снова незачем.
+    if (info == null && ref.read(settingsProvider).pushWake && _attempt < retryAfter.length) {
+      _retry = Timer(retryAfter[_attempt++], () => unawaited(_ask()));
+    }
   }
 }
 
@@ -54,11 +77,21 @@ class PushSleepController extends Notifier<bool> with WidgetsBindingObserver {
   /// Сколько оставаться на связи после запуска, сворачивания и конца звонка.
   static const linger = Duration(seconds: 20);
 
-  /// Пауза между снятием регистрации и остановкой фоновой службы: запрос к АТС должен успеть уйти.
-  static const _farewell = Duration(milliseconds: 1500);
+  /// Не засыпаем, пока АТС не подтвердила регистрацию: иначе она может не знать нынешнего адреса для push
+  /// (после перезагрузки телефона сеть появляется не сразу). Но и ждать вечно нельзя — это батарея.
+  static const registerPatience = Duration(minutes: 2);
+
+  /// Как часто проверять, появилась ли регистрация, пока её ждём.
+  static const _recheck = Duration(seconds: 5);
+
+  /// Небольшая пауза перед остановкой фоновой службы после ухода со связи.
+  static const _farewell = Duration(milliseconds: 300);
 
   bool _visible = false;
   DateTime _awakeUntil = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// С какого момента приложение пытается выйти на связь в нынешнем периоде бодрствования.
+  DateTime _awakeSince = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _timer;
   bool _goingToSleep = false;
 
@@ -75,6 +108,7 @@ class PushSleepController extends Notifier<bool> with WidgetsBindingObserver {
       _timer?.cancel();
     });
     _visible = _isVisible(binding.lifecycleState);
+    _awakeSince = clock.now();
     _stayAwake(linger);
 
     keeper.onPushWake = () {
@@ -94,14 +128,20 @@ class PushSleepController extends Notifier<bool> with WidgetsBindingObserver {
       unawaited(ref.read(sessionProvider.notifier).usePush(next));
       _evaluate();
     });
-    // Звонок закончился — ещё немного остаёмся на связи: могут перезвонить.
+    // Звонок закончился — ещё немного остаёмся на связи: могут перезвонить. Заодно применяем смену режима
+    // или адреса для push, если она пришла во время звонка (тогда связь трогать было нельзя).
     void callChanged({required bool ended}) {
-      if (ended) _stayAwake(linger);
+      if (ended) {
+        _stayAwake(linger);
+        unawaited(ref.read(sessionProvider.notifier).usePush(ref.read(pushModeProvider)));
+      }
       _evaluate();
     }
 
     ref.listen(callProvider, (previous, next) => callChanged(ended: previous != null && next == null));
     ref.listen(otherCallProvider, (previous, next) => callChanged(ended: previous != null && next == null));
+    // Регистрация появилась или пропала — возможно, теперь можно (или уже нельзя) засыпать.
+    ref.listen(linkProvider, (_, _) => _evaluate());
     Future.microtask(() {
       if (ref.mounted) _evaluate();
     });
@@ -140,6 +180,7 @@ class PushSleepController extends Notifier<bool> with WidgetsBindingObserver {
       if (state) state = false;
       if (_engineAsleep) {
         _engineAsleep = false;
+        _awakeSince = now;
         unawaited(ref.read(sessionProvider.notifier).wake());
       }
       if (!_visible && !inCall) {
@@ -148,12 +189,18 @@ class PushSleepController extends Notifier<bool> with WidgetsBindingObserver {
       return;
     }
     if (state || _goingToSleep) return;
+    if (!ref.read(linkProvider).isOnline && now.difference(_awakeSince) < registerPatience) {
+      // Регистрация ещё не подтверждена — подождём её, прежде чем уходить со связи.
+      _timer = Timer(_recheck, _evaluate);
+      return;
+    }
     _goingToSleep = true;
     unawaited(_sleep());
   }
 
   Future<void> _sleep() async {
     _engineAsleep = true;
+    // Движок сам дожидается от АТС подтверждения, что регистрация снята.
     await ref.read(sessionProvider.notifier).sleep();
     await Future<void>.delayed(_farewell);
     // За это время приложение могли открыть или разбудить — тогда спать уже не нужно.

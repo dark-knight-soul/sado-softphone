@@ -97,6 +97,24 @@ object SadoEngine {
         send("pushWake")
     }
 
+    /**
+     * Google сменил адрес телефона для push. Если код Dart работает — сообщаем ему. Если приложение спит
+     * и выгружено — поднимаем мотор: при запуске он регистрируется на АТС уже с новым адресом. Иначе АТС
+     * будила бы телефон по старому адресу, то есть не будила бы вовсе, пока приложение не откроют руками.
+     * Фоновую службу тоже пробуем поднять; Android может не разрешить это из фона — тогда обходимся без неё.
+     */
+    fun pushTokenChanged(app: Context) {
+        main.post {
+            val running = channel != null
+            get(app)
+            if (running) {
+                channel?.invokeMethod("pushToken", null)
+            } else {
+                CallService.start(app, CallService.MODE_STANDBY, title = "SADO", text = "")
+            }
+        }
+    }
+
     /** Сообщение в Dart: «hangUp» или «accept» (кнопки в уведомлении); при необходимости — с одним значением. */
     fun send(method: String, argument: Any? = null) {
         main.post { channel?.invokeMethod(method, argument) }
@@ -223,7 +241,9 @@ object SadoEngine {
         // Прошлый вопрос остался без ответа — закрываем его, чтобы Dart не ждал вечно.
         scanResult?.success(mapOf("status" to "cancelled"))
         scanResult = result
-        if (activity?.get()?.scanQr(hint, close) != true) qrScanned("denied", null)
+        // Экран сканера открыть не удалось (нет окна приложения) — это не отказ в камере: отвечаем
+        // «сканера нет», и приложение подскажет навести обычную камеру телефона.
+        if (activity?.get()?.scanQr(hint, close) != true) qrScanned("unavailable", null)
     }
 
     /** Сканер закрылся. Ответ Dart отправляется ровно один раз. */

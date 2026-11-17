@@ -1,0 +1,3 @@
+• QR scanner: works on devices that only have a front camera, uses less memory, and no longer reports a failed start as a missing camera permission
+• Reconnecting to the PBX right after a disconnect is more reliable
+• Fixes for the experimental "Wake on call" mode (builds with Google push only)

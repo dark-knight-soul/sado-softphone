@@ -21,7 +21,7 @@ import 'pidf.dart';
 /// телефон → WebSocket → Kamailio → Asterisk.
 class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   SipEngine() {
-    _helper.addSipUaHelperListener(this);
+    _link = _Link(this, _newHelper());
   }
 
   /// Сколько ждать первого ответа сервера при входе.
@@ -35,13 +35,19 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   // Для разбора неполадок на телефоне: сборка с --dart-define=SADO_SIP_LOG=true печатает подробный
   // журнал SIP в logcat и в собранном приложении. В обычных сборках этого нет.
   static const _verbose = bool.fromEnvironment('SADO_SIP_LOG');
-  final sip.SIPUAHelper _helper = sip.SIPUAHelper(
+  static sip.SIPUAHelper _newHelper() => sip.SIPUAHelper(
     customLogger: Logger(
       level: _verbose ? Level.debug : Level.warning,
       filter: _verbose ? ProductionFilter() : null,
       printer: SimplePrinter(colors: false),
     ),
   );
+
+  /// Нынешнее подключение к АТС: свой экземпляр sip_ua и свой канал событий. На каждое новое подключение
+  /// заводится новое — иначе запоздавшее событие остановленного («соединение закрыто») приходило бы
+  /// в обработчики нового и срывало его.
+  late _Link _link;
+  sip.SIPUAHelper get _helper => _link.helper;
   Account? _account;
 
   /// Какой звонок мы сейчас сами снимаем с удержания (id звонка sip_ua; см. обработку UNHOLD).
@@ -98,6 +104,9 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   Future<LinkStatus> connect(Account account, String password, {bool keepTrying = false, PushInfo? push}) {
     _account = account;
     _keepTrying = keepTrying;
+    // Прежнее подключение ещё не дало итога — отвечаем тем, кто его ждал, что оно отменено:
+    // иначе их ожидание не закончилось бы никогда.
+    _abandonFirstResult();
     _firstResult = Completer<LinkStatus>();
     link.value = LinkStatus.connecting;
 
@@ -130,6 +139,15 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
     _connectTimer?.cancel();
     _connectTimer = Timer(_connectTimeout, () => _settle(const LinkStatus(LinkState.failed, LinkError.network)));
 
+    // Экземпляр sip_ua уже работал (или был остановлен) — подключаемся новым, старый окончательно глушим.
+    if (_link.used) {
+      final old = _link;
+      old.live = false;
+      if (_started) old.helper.stop();
+      _link = _Link(this, _newHelper());
+    }
+    _link.used = true;
+    _link.live = true;
     _started = true;
     unawaited(
       _helper.start(settings).catchError((Object e) {
@@ -151,15 +169,41 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
     }
   }
 
+  /// Сколько ждать от АТС подтверждения, что регистрация снята ([sleep]).
+  static const _unregisterTimeout = Duration(seconds: 5);
+
+  /// Ждёт подтверждения снятия регистрации; завершается и при обрыве соединения.
+  Completer<void>? _unregistered;
+
+  /// Отвечает «не на связи» тому, кто ещё ждёт первого итога [connect], и снимает его таймер.
+  void _abandonFirstResult() {
+    _connectTimer?.cancel();
+    final first = _firstResult;
+    if (first != null && !first.isCompleted) first.complete(LinkStatus.offline);
+  }
+
   @override
   Future<void> sleep() async {
     if (_current != null || _other != null) return;
-    // Остановка sip_ua сама снимает регистрацию на АТС и закрывает соединение.
+    final registered = _started && link.value.isOnline;
     _keepTrying = false;
+    _abandonFirstResult();
+    final done = Completer<void>();
+    _unregistered = done;
+    // Остановка sip_ua сама снимает регистрацию на АТС и закрывает соединение.
     _stop();
     _subscribed.clear();
     if (presence.value.isNotEmpty) presence.value = const {};
     link.value = LinkStatus.offline;
+    // Дожидаемся ответа АТС: вызвавший после этого может остановить фоновую службу, и если запрос не успеет
+    // уйти, АТС будет считать телефон на связи и слать звонки в закрытое соединение, а не будить его.
+    if (registered) await done.future.timeout(_unregisterTimeout, onTimeout: () {});
+    if (identical(_unregistered, done)) _unregistered = null;
+  }
+
+  void _confirmUnregistered() {
+    final waiting = _unregistered;
+    if (waiting != null && !waiting.isCompleted) waiting.complete();
   }
 
   void _stop() {
@@ -169,6 +213,8 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
     _subscribeTimer = null;
     if (!_started) return;
     _started = false;
+    // С этого момента события этого подключения движку не нужны — кроме подтверждения, что регистрация снята.
+    _link.live = false;
     _helper.stop();
   }
 
@@ -968,7 +1014,6 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
     _connectTimer?.cancel();
     _connectingTimer?.cancel();
     _retryTimer?.cancel();
-    _helper.removeSipUaHelperListener(this);
     for (final c in [_current, _other]) {
       try {
         _end(c);
@@ -1025,5 +1070,62 @@ class _ReplacesOf {
     } catch (_) {
       return null;
     }
+  }
+}
+
+/// Канал событий одного подключения к АТС (одного экземпляра sip_ua).
+///
+/// Пока подключение «живое», события идут в движок как обычно. После остановки из них нужны только два:
+/// «регистрация снята» и «соединение закрыто» — по ним [SipEngine.sleep] понимает, что АТС получила запрос.
+class _Link implements sip.SipUaHelperListener {
+  _Link(this._engine, this.helper) {
+    helper.addSipUaHelperListener(this);
+  }
+
+  final SipEngine _engine;
+  final sip.SIPUAHelper helper;
+
+  /// Этим экземпляром уже подключались — для следующего подключения нужен новый.
+  bool used = false;
+
+  /// Подключение действует: его события принадлежат движку.
+  bool live = false;
+
+  @override
+  void transportStateChanged(sip.TransportState state) {
+    if (live) {
+      _engine.transportStateChanged(state);
+    } else if (state.state == sip.TransportStateEnum.DISCONNECTED) {
+      _engine._confirmUnregistered();
+    }
+  }
+
+  @override
+  void registrationStateChanged(sip.RegistrationState state) {
+    if (live) {
+      _engine.registrationStateChanged(state);
+    } else if (state.state == sip.RegistrationStateEnum.UNREGISTERED) {
+      _engine._confirmUnregistered();
+    }
+  }
+
+  @override
+  void callStateChanged(sip.Call call, sip.CallState state) {
+    if (live) _engine.callStateChanged(call, state);
+  }
+
+  @override
+  void onNewMessage(sip.SIPMessageRequest msg) {
+    if (live) _engine.onNewMessage(msg);
+  }
+
+  @override
+  void onNewNotify(sip.Notify ntf) {
+    if (live) _engine.onNewNotify(ntf);
+  }
+
+  @override
+  void onNewReinvite(sip.ReInvite event) {
+    if (live) _engine.onNewReinvite(event);
   }
 }
