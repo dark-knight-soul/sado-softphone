@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../l10n/strings.dart';
+import '../state/pbx_features.dart';
+import '../state/recording.dart';
 import '../state/call.dart';
 import '../state/settings.dart';
 import '../theme/sado_icons.dart';
@@ -625,9 +627,29 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     // Карточка второго звонка или строка «На удержании» — под шапкой. На невысоком экране ради неё
     // первым делом убираем аватар (кнопки, и особенно «Завершить», должны остаться на экране).
     final second = _SecondCall(palette: c);
+    // Запись разговора: кнопка-пометка под именем. Видна, только если АТС сообщила код записи для этого
+    // номера, и только в соединённом разговоре.
+    final canRecord = ref.watch(pbxFeaturesProvider.select((f) => f.recordCode != null));
+    final recording = ref.watch(recordingProvider.select((ids) => ids.contains(call.id)));
+    final showRecord = canRecord && call.phase == CallPhase.active && call.since != null;
     final hasOther = ref.watch(otherCallProvider.select((o) => o != null));
     final short = screen.height - MediaQuery.paddingOf(context).vertical < 640;
-    final hideAvatar = _keypad || (hasOther && short);
+    // Кнопка записи тоже занимает строку под именем — на невысоком экране аватар уступает место и ей.
+    final hideAvatar = _keypad || (short && (hasOther || showRecord));
+    // Самый тесный случай: невысокий экран, второй звонок и кнопка записи разом. Тогда строка «Защищённый
+    // звонок» уступает место: кнопки и «Завершить» важнее.
+    final crowded = short && hasOther && showRecord;
+    final Widget record = showRecord
+        ? Padding(
+            padding: EdgeInsets.only(top: short ? 4 : 8),
+            child: _RecordPill(
+              palette: c,
+              on: recording,
+              // На удержании код до АТС не дойдёт — кнопку не нажать, но пометка остаётся видна.
+              onTap: call.held ? null : ref.read(recordingProvider.notifier).toggle,
+            ),
+          )
+        : const SizedBox.shrink();
     // На невысоком экране сжимаем просветы между частями экрана — и при одном звонке тоже: иначе на маленьком
     // телефоне с тремя кнопками навигации «Завершить» уходила под нижнюю панель.
     final tight = short;
@@ -748,10 +770,20 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       // В духе iOS: имя слева вверху, сетка кнопок внизу, «Завершить» — во втором ряду посередине.
       CallLayout.cupertino => Column(
         children: [
-          const SizedBox(height: 14),
-          secure,
-          const SizedBox(height: 14),
-          _CallerLeft(call: call, palette: c, status: status, avatar: !(hasOther && (short || _keypad))),
+          if (crowded)
+            const SizedBox(height: 8)
+          else ...[
+            const SizedBox(height: 14),
+            secure,
+            const SizedBox(height: 14),
+          ],
+          _CallerLeft(
+            call: call,
+            palette: c,
+            status: status,
+            avatar: !(hasOther && (short || _keypad)) && !(short && showRecord),
+          ),
+          record,
           second,
           if (_keypad) ...[
             // FittedBox: если клавишам всё же не хватает высоты, они уменьшаются, а не вылезают за экран.
@@ -801,6 +833,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             SizedBox(height: _keypad ? 2 : 10),
           ],
           _Caller(call: call, palette: c, status: status, avatar: 0, large: true, statusAbove: true),
+          record,
           second,
           Expanded(
             child: _keypad
@@ -865,11 +898,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       ),
       CallLayout.standard => Column(
         children: [
-          SizedBox(height: tight ? 8 : 18),
-          secure,
-          SizedBox(height: _keypad || tight ? 8 : 24),
+          if (crowded)
+            const SizedBox(height: 6)
+          else ...[
+            SizedBox(height: tight ? 8 : 18),
+            secure,
+            SizedBox(height: _keypad || tight ? 8 : 24),
+          ],
           // С открытыми клавишами аватар прячем, иначе на маленьком экране всё не поместится.
           _Caller(call: call, palette: c, status: status, avatar: hideAvatar ? 0 : (short ? 64 : 92)),
+          record,
           second,
           if (_keypad)
             Expanded(
@@ -904,6 +942,51 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   }
 }
 
+/// Кнопка и пометка записи разговора: маленькая «пилюля» под именем собеседника.
+/// Выключена — «Записать», включена — красная точка и «Идёт запись».
+class _RecordPill extends StatelessWidget {
+  const _RecordPill({required this.palette, required this.on, required this.onTap});
+
+  final CallPalette palette;
+  final bool on;
+
+  /// null — нажать нельзя (разговор на удержании).
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final p = palette;
+    return Material(
+      key: const Key('call.record'),
+      color: on ? p.hangup.withValues(alpha: 0.18) : p.surface,
+      shape: const StadiumBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 6, 14, 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.fiber_manual_record, size: 14, color: on ? p.hangup : p.muted),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  on ? s.recordingOn : s.record,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 13, color: p.text),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Второй звонок под шапкой разговора: карточка «Второй звонок» с «Ответить» и «Отклонить»,
 /// пока он звонит, или строка «На удержании: …» с «Переключить», когда звонков два. Нет второго — пусто.
 class _SecondCall extends ConsumerWidget {
@@ -918,6 +1001,8 @@ class _SecondCall extends ConsumerWidget {
     final controller = ref.read(callProvider.notifier);
     // Соединён ли текущий разговор: пока вызов «Сначала поговорить» ещё звонит, переключать и соединять некого.
     final connected = ref.watch(callProvider.select((c) => c?.phase == CallPhase.active && c?.since != null));
+    // «Объединить» показываем, только если АТС сообщила, что умеет конференции.
+    final canMerge = ref.watch(pbxFeaturesProvider.select((f) => f.canConference));
     // Ключ — номер звонка: новый второй звонок — новая карточка (и новый короткий отклик вибрацией).
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
@@ -936,6 +1021,8 @@ class _SecondCall extends ConsumerWidget {
               // звонит, соединять некого.
               onSwap: connected ? controller.swap : null,
               onConnect: connected ? controller.connectCalls : null,
+              canMerge: canMerge,
+              onMerge: connected ? controller.conference : null,
             ),
     );
   }
@@ -1022,7 +1109,14 @@ class _WaitingCardState extends State<_WaitingCard> {
 /// Строка «На удержании: …» с кнопками «Переключить» и «Соединить» — когда идут два разговора.
 /// Кнопки стоят под надписью: в одну строку с ней на узком экране не помещается имя.
 class _HeldStrip extends StatelessWidget {
-  const _HeldStrip({required this.call, required this.palette, required this.onSwap, required this.onConnect});
+  const _HeldStrip({
+    required this.call,
+    required this.palette,
+    required this.onSwap,
+    required this.onConnect,
+    required this.canMerge,
+    required this.onMerge,
+  });
 
   final CallInfo call;
   final CallPalette palette;
@@ -1033,6 +1127,12 @@ class _HeldStrip extends StatelessWidget {
 
   /// null — «Соединить» неактивна (текущий вызов ещё не соединился).
   final VoidCallback? onConnect;
+
+  /// Показывать ли «Объединить» (конференция) — только если АТС это умеет.
+  final bool canMerge;
+
+  /// null — «Объединить» неактивна (текущий вызов ещё не соединился).
+  final VoidCallback? onMerge;
 
   @override
   Widget build(BuildContext context) {
@@ -1088,6 +1188,14 @@ class _HeldStrip extends StatelessWidget {
                     icon: const Icon(Icons.call_merge, size: 20),
                     label: Text(s.connectCalls, maxLines: 1),
                   ),
+                  if (canMerge)
+                    TextButton.icon(
+                      key: const Key('call.merge'),
+                      onPressed: onMerge,
+                      style: buttonStyle,
+                      icon: const Icon(Icons.groups_rounded, size: 20),
+                      label: Text(s.mergeCalls, maxLines: 1),
+                    ),
                 ],
               ),
             ),

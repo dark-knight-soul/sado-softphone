@@ -115,6 +115,14 @@ class _En extends S {
   @override
   String get connectCalls => 'Connect';
   @override
+  String get mergeCalls => 'Merge';
+  @override
+  String get conference => 'Conference';
+  @override
+  String get record => 'Record';
+  @override
+  String get recordingOn => 'Recording';
+  @override
   String get failConnect => 'Could not connect the calls';
   @override
   String get inCall => 'Call in progress';
@@ -320,6 +328,8 @@ class _En extends S {
   String get showPhoneContacts => "Show phone contacts";
   @override
   String get fromPhone => "From phone";
+  @override
+  String get myContacts => 'My contacts';
   @override
   String get phoneContactsTitle => "Phone contacts";
   @override

@@ -24,6 +24,20 @@ const _domain = String.fromEnvironment('SADO_STAND_DOMAIN');
 /// Номер на АТС, который сам отвечает и держит разговор (эхо-тест).
 const _echo = String.fromEnvironment('SADO_STAND_ECHO', defaultValue: '*43');
 
+/// Префикс номера временной комнаты конференции (например `*3`); пусто — АТС этого не умеет, не проверяем.
+const _conference = String.fromEnvironment('SADO_STAND_CONFERENCE');
+
+/// Код записи разговора по кнопке (например `*1`); пусто — не проверяем.
+const _record = String.fromEnvironment('SADO_STAND_RECORD');
+
+/// Проверять, что звук от страницы доходит до АТС. Включается и сам, когда проверяется запись: её код
+/// идёт тем же путём, что и звук.
+const _media = String.fromEnvironment('SADO_STAND_MEDIA') == '1' || _record != '';
+
+/// Проверять только сценарии, в названии которых есть одно из этих слов (через запятую); пусто — все.
+/// Регистрация выполняется всегда: без неё остальное не работает.
+const _only = String.fromEnvironment('SADO_STAND_ONLY');
+
 /// АТС показывает коллегам «спящий» номер с адресом push как свободный — проверять и это.
 const _pushHint = String.fromEnvironment('SADO_STAND_PUSH_HINT') == '1';
 
@@ -42,6 +56,19 @@ Future<String> _post(String path, [String body = '']) async {
   final options = <String, Object>{'method': 'POST', 'body': body}.jsify();
   final response = await _fetch(path.toJS, options).toDart.timeout(const Duration(seconds: 40));
   return (await response.text().toDart).toDart;
+}
+
+@JS('sadoMediaDiag')
+external JSPromise<JSString> _mediaDiag();
+
+/// Что происходит со звуковыми соединениями страницы (состояние, пары адресов) — для сообщения о сбое.
+/// Сценарий, который это умеет, вставляет в страницу run.py.
+Future<String> _mediaState() async {
+  try {
+    return (await _mediaDiag().toDart.timeout(const Duration(seconds: 5))).toDart;
+  } catch (error) {
+    return 'состояние звука узнать не удалось: $error';
+  }
 }
 
 /// Просьба к помощнику: «позвони мне», «покажи каналы» и т. п. Возвращает его ответ текстом.
@@ -106,6 +133,7 @@ Future<void> _run() async {
 
   /// Один сценарий: любой сбой внутри — «не прошёл», после чего приводим всё в исходное состояние.
   Future<void> scenario(String name, Future<void> Function() body) async {
+    if (_only != '' && !name.startsWith('регистрация') && !_only.split(',').any(name.contains)) return;
     failures.clear();
     try {
       await body();
@@ -157,6 +185,26 @@ Future<void> _run() async {
     await _until('звонок завершён', () => engine.call.value == null);
     if (failures.isNotEmpty) throw StateError('сбои: $failures');
   });
+
+  if (_media) {
+    await scenario('звук доходит до АТС (без этого не дойдут и тоновые сигналы)', () async {
+      await talkToEcho();
+      // Счётчик принятых пакетов в статистике канала: «<номер>-… <время> <кодек> <принято> …».
+      int received(String stats) {
+        final m = RegExp(
+          '${RegExp.escape(_number)}-'
+          r'\S+\s+\S+\s+\S+\s+(\d+)',
+        ).firstMatch(stats);
+        return m == null ? -1 : int.parse(m.group(1)!);
+      }
+
+      try {
+        await _untilAsk('АТС получает звук от нашего номера', 'media', (reply) => received(reply) > 20);
+      } on StateError catch (error) {
+        throw StateError('${error.message}; звук в браузере: ${await _mediaState()}');
+      }
+    });
+  }
 
   await scenario('удержание и снятие с удержания', () async {
     await talkToEcho();
@@ -321,6 +369,70 @@ Future<void> _run() async {
     final other = await _ask('channels');
     if (other.trim().isEmpty) throw StateError('собеседник A отключён — АТС его ни с кем не соединила');
   });
+
+  if (_conference != '') {
+    await scenario('конференция «Объединить»: оба собеседника и мы оказываемся в одной комнате', () async {
+      // Два собеседника звонят нам по очереди: A отвечен и уходит на удержание, B — текущий.
+      await _ask('ring');
+      await _until('входящий показан', () => engine.call.value?.phase == CallPhase.incoming);
+      engine.accept();
+      await _until('разговор с A', () => active(engine.call.value));
+      final a = engine.call.value!.id;
+      await _pause(800);
+      await _ask('ring');
+      await _until('второй звонок показан', () => engine.other.value?.phase == CallPhase.incoming);
+      engine.acceptOther();
+      await _until(
+        'разговор с B, A на удержании',
+        () => engine.call.value?.id != a && active(engine.call.value) && held(engine.other.value),
+      );
+      final b = engine.call.value!.id;
+      await _pause(1200);
+
+      final code = [for (var i = 0; i < 6; i++) (DateTime.now().microsecond + i * 7) % 10].join();
+      final room = '$_conference$code';
+      engine.conference(room, name: 'Конференция');
+      await _until('мы в комнате: один новый разговор на её номер', () {
+        final c = engine.call.value;
+        return c != null && c.id != a && c.id != b && c.number == room && active(c) && engine.other.value == null;
+      }, limit: const Duration(seconds: 40));
+      if (failures.isNotEmpty) throw StateError('АТС не объединила: $failures');
+      await _pause(1500);
+      // На АТС в комнате с этим кодом должны быть трое: A, B и мы.
+      await _untilAsk('в комнате на АТС трое участников', 'conferences', (reply) {
+        return RegExp(code + r'\S*\s+3\b').hasMatch(reply);
+      });
+      // Собеседники никуда не делись: их каналы на АТС живы.
+      final others = const LineSplitter().convert(await _ask('channels')).where((l) => l.trim().isNotEmpty).length;
+      if (others < 2) throw StateError('в комнате должны остаться оба собеседника, а их каналов на АТС: $others');
+      engine.hangUp();
+      await _until('вышли из конференции', () => engine.call.value == null);
+    });
+  }
+
+  if (_record != '') {
+    await scenario('запись по кнопке: код включает запись на АТС, повторный — выключает', () async {
+      // Записывать есть смысл только разговор двух сторон: собеседник звонит нам, мы отвечаем.
+      await _ask('ring');
+      await _until('входящий показан', () => engine.call.value?.phase == CallPhase.incoming);
+      engine.accept();
+      await _until('разговор', () => active(engine.call.value));
+      await _pause(1500);
+      if ((await _ask('recording')).trim().isNotEmpty) throw StateError('запись идёт ещё до нажатия кнопки');
+
+      engine.sendDtmf(_record);
+      try {
+        await _untilAsk('АТС начала запись', 'recording', (reply) => reply.trim().isNotEmpty);
+      } on StateError catch (error) {
+        // Самая частая причина — код не дошёл, потому что не доходит звук.
+        throw StateError('${error.message}; звук в браузере: ${await _mediaState()}');
+      }
+      await _pause(2500);
+      engine.sendDtmf(_record);
+      await _untilAsk('АТС остановила запись', 'recording', (reply) => reply.trim().isEmpty);
+      if (!active(engine.call.value)) throw StateError('разговор не должен прерываться из-за записи');
+    });
+  }
 
   await scenario('статус своего номера: свободен → разговаривает → свободен', () async {
     engine.watchPresence({_number});

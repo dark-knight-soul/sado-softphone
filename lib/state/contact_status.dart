@@ -2,9 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/demo_data.dart';
 import 'contacts.dart';
+import 'directory.dart';
 import 'session.dart';
 
-/// Статусы своих контактов по данным АТС: номер → свободен / говорит / не в сети.
+/// Статусы своих контактов и коллег из справочника по данным АТС: номер → свободен / говорит / не в сети.
 ///
 /// Просит движок следить за номерами из записной книжки и пересказывает, что сообщила АТС.
 /// Если АТС статусы не отдаёт (нет подписки или номера ей неизвестны), словарь просто пуст —
@@ -18,9 +19,13 @@ class ContactStatusController extends Notifier<Map<String, Presence>> {
     final engine = ref.watch(engineProvider);
     if (engine == null) return const {};
     final contacts = ref.watch(contactsProvider);
+    final colleagues = ref.watch(directoryProvider)?.entries ?? const <DirectoryEntry>[];
+    // Сначала свои контакты: движок следит не больше чем за несколькими десятками номеров,
+    // и при длинном справочнике место должно достаться тем, кого человек выбрал сам.
     engine.watchPresence({
       for (final c in contacts)
         if (!c.isGroup) c.number,
+      for (final e in colleagues) e.number,
     });
     void sync() => state = engine.presence.value;
     engine.presence.addListener(sync);

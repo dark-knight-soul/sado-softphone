@@ -10,6 +10,7 @@ import '../sip/call_engine.dart';
 import '../sip/demo_engine.dart';
 import 'contacts.dart';
 import 'history.dart';
+import 'pbx_features.dart';
 import 'session.dart';
 import 'settings.dart';
 
@@ -219,6 +220,15 @@ class CallController extends Notifier<CallInfo?> {
 
   /// Соединить текущего собеседника с удержанным; оба звонка уходят с телефона.
   void connectCalls() => _engine?.connectCalls();
+
+  /// «Объединить»: оба разговора уходят во временную комнату конференции на АТС, и этот телефон входит
+  /// туда же. Работает, только если АТС сообщила, что умеет это ([pbxFeaturesProvider]).
+  void conference() {
+    final features = ref.read(pbxFeaturesProvider);
+    if (!features.canConference) return;
+    final s = S.byCode(ref.read(settingsProvider).lang ?? PlatformDispatcher.instance.locale.languageCode);
+    _engine?.conference(features.newConferenceRoom(), name: s.conference);
+  }
 
   void toggleMute() => _engine?.setMuted(!(state?.muted ?? false));
 

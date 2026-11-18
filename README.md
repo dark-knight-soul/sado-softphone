@@ -44,6 +44,9 @@ Wi-Fi or mobile data, with no SIM card involved.
 - Hold, mute, speakerphone, in-call keypad (DTMF, RFC 2833)
 - Call transfer: immediate, or attended — talk to the colleague first, then connect the two
 - Call waiting: answer a second call during a conversation and switch between the two
+- Conference: merge the two calls into one room, when the PBX provides temporary conference rooms
+- Recording on demand: a **Record** button during a call, when the PBX offers a recording code for your extension
+  (the PBX records and stores the call, not the phone)
 - Do Not Disturb (callers hear “busy”), silence the ringer for a single call
 - Redial: the call button on an empty field brings back the last number
 - Choose where the sound goes: earpiece, speaker, Bluetooth headset or wired headphones
@@ -70,6 +73,7 @@ Wi-Fi or mobile data, with no SIM card involved.
 - Save a number straight from the call history; names show up in history and on the call screen
 - Optionally show the phone's address book (read on the device each time, never copied or uploaded)
 - Colleague status next to your contacts — available, on a call or offline — when the PBX provides it
+- Company directory by department, loaded from the PBX when it offers one; names show up on calls and in history
 
 ## Screenshots
 
@@ -138,6 +142,7 @@ SADO connects the same way a browser softphone does:
 | DTMF | RFC 2833 / RFC 4733 |
 | Reachability | The phone must reach the PBX directly (same network, VPN or public address) — no STUN/TURN is used |
 | Colleague status (optional) | `SUBSCRIBE` with `Event: presence`, `application/pidf+xml` (RFC 3856/3863); in Asterisk — a `hint` for each extension |
+| Directory and extras (optional) | An HTTPS endpoint on the same host — see [Directory and PBX features](#directory-and-pbx-features) |
 
 Classic SIP over UDP/TCP/TLS is **not** supported — the server must offer a WebSocket transport.
 
@@ -196,11 +201,46 @@ If you type only a host name (`pbx.example.com`), the app uses `wss://pbx.exampl
 Tested with Asterisk (PJSIP) behind a Kamailio WebSocket proxy. Other servers with SIP-over-WebSocket and
 WebRTC support (FreePBX, FreeSWITCH, OpenSIPS, …) should work; reports are welcome.
 
+## Directory and PBX features
+
+Optional. If the PBX host answers `GET https://<host>/api/v1/directory`, SADO shows the company directory and
+enables extras that depend on PBX-specific feature codes. `<host>` is the host from the **Server** field; the
+port is 443.
+
+1. Without credentials the endpoint must answer `401` with `WWW-Authenticate: Basic realm="sado"` (other
+   parameters, such as `charset`, are fine). Only then does the app send `Authorization: Basic` with the extension
+   number and its SIP password. A `429` to this probe means "ask later", not "no directory here".
+2. With credentials it answers `200` and JSON; `ETag` / `If-None-Match` (`304`) are honoured.
+
+```json
+{
+  "self": "1003",
+  "entries": [
+    {"number": "1001", "name": "Anna Kim", "department": "Sales"},
+    {"number": "1010", "name": "Warehouse", "department": ""}
+  ],
+  "features": {"conference": "*3", "conference_digits": 6, "record": null}
+}
+```
+
+- `entries` are shown in the given order, grouped by `department`; unknown fields are ignored.
+- `features.conference` — the prefix of a temporary conference room: dialling the prefix plus `conference_digits`
+  random digits must put the caller into a room that exists while someone is in it. With it, **Merge** appears
+  when two calls are up: the app transfers both parties to a fresh room and joins it.
+- `features.record` — the in-call code that starts and stops recording on the PBX (`null` when this extension
+  may not record). With it, a **Record** button appears in a connected call; a tap sends the code as DTMF
+  (RFC 2833), a second tap sends it again. The PBX does not report back, so the “Recording” mark shows what
+  you pressed, not what the PBX did — listen for its confirmation tone.
+- On `401` with credentials the app stops asking until the next sign-in; on `429` it waits 15 minutes.
+
 ## Privacy and security
 
 - The password is stored in the Android Keystore-backed secure storage, never in plain settings.
 - Call history and contacts stay on the phone and are excluded from cloud backups and device transfer.
 - The app has no analytics, crash reporting or advertising SDKs and contacts no server except your PBX.
+- The company directory is requested from the PBX host over HTTPS. The extension password is sent there only
+  after the server has identified itself as a SADO directory without credentials, and never over plain HTTP
+  or after a redirect. The list is kept on the phone and erased when you sign out.
   The only exception is the **Check for updates** button in Settings: it asks GitHub for the latest release,
   and only when you tap it.
 - The phone's address book is read only if you turn that on, stays in memory and is never stored or sent anywhere.
@@ -218,10 +258,11 @@ Found a vulnerability? See [SECURITY.md](SECURITY.md).
 - No push notifications: the app keeps a light background connection to the PBX instead, so it needs
   permission to run in the background.
 - Two calls at most: a third incoming call gets “busy”.
-- No video, conference calls or call recording yet.
-- Call waiting and attended transfer are new in 1.2.0 and have been exercised only against the built-in test
-  engine so far; behaviour with a particular PBX may need fixes — please report.
-- Contacts are local; there is no directory sync with the PBX.
+- No video. Calls are never recorded on the phone; the Record button only asks the PBX to record.
+- Call waiting and transfers are checked against Asterisk behind Kamailio before each release (see
+  `tool/stand_check`); other PBXes may behave differently — please report.
+- Your own contacts are local. The company directory and the Merge and Record buttons need the optional endpoint described
+  under [Directory and PBX features](#directory-and-pbx-features).
 - Tested on a Xiaomi phone (HyperOS, Android 17). The background-permission shortcuts for other brands
   are implemented but have not been verified on real devices.
 

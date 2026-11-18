@@ -1,0 +1,4 @@
+• Company directory: colleagues from your PBX appear in Contacts, grouped by department
+• Conference: "Merge" joins your two calls into one room
+• Recording on demand: a "Record" button in a call asks the PBX to record it
+All three appear only when your PBX offers them; with other PBXes nothing changes

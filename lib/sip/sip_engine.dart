@@ -764,7 +764,14 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
 
   @override
   void sendDtmf(String tone) {
-    if (call.value?.phase == CallPhase.active) _current?.sendDTMF(tone);
+    if (call.value?.phase != CallPhase.active) return;
+    // Один знак — нажатие клавиши человеком. Несколько знаков — служебный код АТС (например, запись
+    // разговора): его знаки должны идти плотно, иначе АТС не сочтёт их одним кодом.
+    if (tone.length > 1) {
+      _current?.sendDTMF(tone, <String, dynamic>{'duration': 160, 'interToneGap': 120});
+    } else {
+      _current?.sendDTMF(tone);
+    }
   }
 
   @override
@@ -924,6 +931,82 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
     subscriber.on(refer.EventReferAccepted(), (refer.EventReferAccepted _) => finish(true));
     subscriber.on(refer.EventReferFailed(), (refer.EventReferFailed _) => finish(false));
     subscriber.on(refer.EventReferRequestFailed(), (refer.EventReferRequestFailed _) => finish(false));
+  }
+
+  /// Просит АТС перевести собеседника по звонку [leg] на номер [to] (REFER) и ждёт её ответа:
+  /// true — АТС перевела, false — отказала или не ответила за отведённое время.
+  Future<bool> _referTo(sip.Call leg, String to) {
+    final subscriber = (() {
+      try {
+        return leg.session.refer(to);
+      } catch (_) {
+        return null; // адрес не разобрался
+      }
+    })();
+    // null — звонок не в том состоянии, чтобы отправить REFER.
+    if (subscriber == null) return Future.value(false);
+    final done = Completer<bool>();
+    void finish(bool ok) {
+      if (!done.isCompleted) done.complete(ok);
+    }
+
+    final timer = Timer(_connectCallsTimeout, () => finish(false));
+    subscriber.on(refer.EventReferAccepted(), (refer.EventReferAccepted _) => finish(true));
+    subscriber.on(refer.EventReferFailed(), (refer.EventReferFailed _) => finish(false));
+    subscriber.on(refer.EventReferRequestFailed(), (refer.EventReferRequestFailed _) => finish(false));
+    return done.future.whenComplete(timer.cancel);
+  }
+
+  @override
+  void conference(String room, {String? name}) {
+    final current = _current;
+    final held = _other;
+    final c = call.value;
+    final h = other.value;
+    final to = dialTarget(room);
+    if (_connecting || to.isEmpty || current == null || held == null || c == null || h == null) return;
+    if (c.phase != CallPhase.active || c.since == null || h.phase != CallPhase.active) return;
+    // Пока идёт объединение, «Соединить» и повторное «Объединить» недоступны (общий признак занятости).
+    _connectingTimer = Timer(_connectCallsTimeout * 3, () => _connectingTimer = null);
+    unawaited(_merge(current, held, to, name));
+  }
+
+  Future<void> _merge(sip.Call current, sip.Call held, String to, String? name) async {
+    void done() {
+      _connectingTimer?.cancel();
+      _connectingTimer = null;
+    }
+
+    // Убирает переведённый звонок с экрана и кладёт на нём трубку, если АТС ещё не сделала этого сама.
+    void release(sip.Call leg) {
+      if (_isOther(leg)) _clearOther();
+      if (_isCurrent(leg)) _clearCall();
+      if (!leg.session.isEnded()) _end(leg);
+    }
+
+    // Первым в комнату уходит удержанный собеседник: текущий разговор при этом не прерывается,
+    // и если АТС откажет, ничего не изменится.
+    if (!await _referTo(held, to)) {
+      done();
+      reportFailure(CallFailure.transfer);
+      return;
+    }
+    release(held);
+    // Текущий собеседник мог за это время положить трубку — тогда переводить некого, но первый уже
+    // ждёт в комнате, и мы всё равно идём к нему.
+    if (_isCurrent(current) && !current.session.isEnded()) {
+      if (!await _referTo(current, to)) {
+        // Редкий случай: первого АТС перевела, второго — нет. Разговор со вторым продолжается;
+        // первый ждёт в комнате, сообщаем о сбое.
+        done();
+        reportFailure(CallFailure.transfer);
+        return;
+      }
+      release(current);
+    }
+    done();
+    // Оба собеседника в комнате — входим сами обычным звонком.
+    if (_current == null && _other == null) dial(to, name: name);
   }
 
   // ---- Остальные события sip_ua нам не нужны ----

@@ -115,6 +115,14 @@ class _Ru extends S {
   @override
   String get connectCalls => 'Соединить';
   @override
+  String get mergeCalls => 'Объединить';
+  @override
+  String get conference => 'Конференция';
+  @override
+  String get record => 'Записать';
+  @override
+  String get recordingOn => 'Идёт запись';
+  @override
   String get failConnect => 'Не удалось соединить';
   @override
   String get inCall => 'Идёт разговор';
@@ -319,6 +327,8 @@ class _Ru extends S {
   String get showPhoneContacts => "Показать контакты телефона";
   @override
   String get fromPhone => "Из телефона";
+  @override
+  String get myContacts => 'Свои контакты';
   @override
   String get phoneContactsTitle => "Контакты телефона";
   @override

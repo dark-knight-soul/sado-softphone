@@ -8,6 +8,7 @@ import '../sip/demo_engine.dart';
 // Настоящий движок подключается только там, где он собирается; в браузере — заглушка.
 import '../sip/real_engine_web.dart' if (dart.library.io) '../sip/real_engine_io.dart';
 import 'account.dart';
+import 'directory.dart';
 import 'password_store.dart';
 import 'settings.dart';
 
@@ -76,6 +77,10 @@ class SessionController extends Notifier<Account?> {
     await p.remove(_kNumber);
     // История звонков — личные данные: при выходе стираем (ключ тот же, что в history.dart).
     await p.remove('history');
+    // Справочник сотрудников — тоже чужие личные данные: с выходом он не должен оставаться на телефоне.
+    for (final key in DirectoryController.storedKeys) {
+      await p.remove(key);
+    }
     await ref.read(passwordStoreProvider).clear();
     _engine = null;
     state = null;

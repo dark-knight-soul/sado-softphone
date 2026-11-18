@@ -115,6 +115,14 @@ class _Fr extends S {
   @override
   String get connectCalls => 'Relier';
   @override
+  String get mergeCalls => 'Fusionner';
+  @override
+  String get conference => 'Conférence';
+  @override
+  String get record => 'Enregistrer';
+  @override
+  String get recordingOn => 'Enregistrement';
+  @override
   String get failConnect => 'Impossible de relier les appels';
   @override
   String get inCall => 'Appel en cours';
@@ -323,6 +331,8 @@ class _Fr extends S {
   String get showPhoneContacts => "Afficher les contacts du téléphone";
   @override
   String get fromPhone => "Du téléphone";
+  @override
+  String get myContacts => 'Mes contacts';
   @override
   String get phoneContactsTitle => "Contacts du téléphone";
   @override

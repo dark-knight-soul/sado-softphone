@@ -115,6 +115,14 @@ class _Es extends S {
   @override
   String get connectCalls => 'Unir';
   @override
+  String get mergeCalls => 'Combinar';
+  @override
+  String get conference => 'Conferencia';
+  @override
+  String get record => 'Grabar';
+  @override
+  String get recordingOn => 'Grabando';
+  @override
   String get failConnect => 'No se pudieron unir las llamadas';
   @override
   String get inCall => 'Llamada en curso';
@@ -323,6 +331,8 @@ class _Es extends S {
   String get showPhoneContacts => "Mostrar contactos del teléfono";
   @override
   String get fromPhone => "Del teléfono";
+  @override
+  String get myContacts => 'Mis contactos';
   @override
   String get phoneContactsTitle => "Contactos del teléfono";
   @override

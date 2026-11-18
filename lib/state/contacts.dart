@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/demo_data.dart';
 import '../platform/phone_contacts.dart';
+import 'directory.dart';
 import 'session.dart';
 import 'settings.dart';
 
@@ -51,6 +52,10 @@ class ContactsController extends Notifier<List<Contact>> {
     if (number.isEmpty) return null;
     for (final c in state) {
       if (c.number == number) return c.name;
+    }
+    // Справочник АТС: имя коллеги, даже если человек не заносил его в свои контакты.
+    for (final e in ref.read(directoryProvider)?.entries ?? const <DirectoryEntry>[]) {
+      if (e.number == number) return e.name;
     }
     // Контакты телефона: номера в адресной книге пишут по-разному («+998 90 123-45-67»), сравниваем по цифрам.
     final wanted = normalizeNumber(number);

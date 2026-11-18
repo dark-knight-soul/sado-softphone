@@ -115,6 +115,14 @@ class _De extends S {
   @override
   String get connectCalls => 'Verbinden';
   @override
+  String get mergeCalls => 'Konferenz';
+  @override
+  String get conference => 'Konferenz';
+  @override
+  String get record => 'Aufnehmen';
+  @override
+  String get recordingOn => 'Aufnahme läuft';
+  @override
   String get failConnect => 'Anrufe konnten nicht verbunden werden';
   @override
   String get inCall => 'Laufender Anruf';
@@ -322,6 +330,8 @@ class _De extends S {
   String get showPhoneContacts => "Telefonkontakte anzeigen";
   @override
   String get fromPhone => "Vom Telefon";
+  @override
+  String get myContacts => 'Meine Kontakte';
   @override
   String get phoneContactsTitle => "Telefonkontakte";
   @override

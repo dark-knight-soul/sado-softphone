@@ -8,6 +8,7 @@ import 'package:sado/platform/call_keeper.dart';
 import 'package:sado/sip/call_engine.dart';
 import 'package:sado/sip/demo_engine.dart';
 import 'package:sado/state/call.dart';
+import 'package:sado/state/directory.dart';
 import 'package:sado/state/password_store.dart';
 import 'package:sado/state/session.dart';
 import 'package:sado/state/settings.dart';
@@ -141,6 +142,42 @@ class RecordingKeeper extends CallKeeper {
   Future<void> openUrl(String url) async => log.add('openUrl: $url');
 }
 
+/// Справочник АТС в тестах: настоящих запросов нет, отвечает то, что задал тест.
+class FakeDirectory implements DirectoryClient {
+  /// Что отвечает проба без входа: true — «я справочник SADO», false — «нет», null — «сеть недоступна».
+  bool? isDirectory = directoryOfflineOnStart ? null : directoryOnStart != null;
+
+  /// Что отвечает запрос с номером и паролем.
+  DirectoryReply reply = directoryOnStart ?? const DirectoryAbsent();
+
+  int probes = 0;
+
+  /// С чем приходили запросы: номер, пароль и метка версии.
+  final fetches = <({String number, String password, String? etag})>[];
+
+  @override
+  Future<bool?> probe(Uri url) async {
+    probes++;
+    return isDirectory;
+  }
+
+  @override
+  Future<DirectoryReply> fetch(Uri url, {required String number, required String password, String? etag}) async {
+    fetches.add((number: number, password: password, etag: etag));
+    return reply;
+  }
+}
+
+/// Что ответит справочник нового приложения в тесте; null — справочника на сервере нет.
+/// Сбрасывать после теста.
+DirectoryReply? directoryOnStart;
+
+/// При запуске сервер справочника недоступен (проба не даёт ответа). Сбрасывать после теста.
+bool directoryOfflineOnStart = false;
+
+/// Справочник последнего запущенного приложения.
+late FakeDirectory directory;
+
 /// Что новый [RecordingKeeper] вернёт как «номер из ссылки при запуске» (тесты открытия ссылок).
 String? pendingDialOnStart;
 
@@ -196,6 +233,7 @@ Future<MemoryPasswordStore> pumpApp(
         passwordStoreProvider.overrideWithValue(passwords),
         engineFactoryProvider.overrideWithValue(engine ?? (_) => DemoEngine()),
         callKeeperProvider.overrideWithValue(keeper = RecordingKeeper()),
+        directoryClientProvider.overrideWithValue(directory = FakeDirectory()),
       ],
       child: const SadoApp(),
     ),

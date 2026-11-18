@@ -115,6 +115,14 @@ class _It extends S {
   @override
   String get connectCalls => 'Collega';
   @override
+  String get mergeCalls => 'Unisci';
+  @override
+  String get conference => 'Conferenza';
+  @override
+  String get record => 'Registra';
+  @override
+  String get recordingOn => 'Registrazione';
+  @override
   String get failConnect => 'Impossibile collegare le chiamate';
   @override
   String get inCall => 'Chiamata in corso';
@@ -322,6 +330,8 @@ class _It extends S {
   String get showPhoneContacts => "Mostra contatti del telefono";
   @override
   String get fromPhone => "Dal telefono";
+  @override
+  String get myContacts => 'I miei contatti';
   @override
   String get phoneContactsTitle => "Contatti del telefono";
   @override

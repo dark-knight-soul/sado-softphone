@@ -115,6 +115,14 @@ class _Uz extends S {
   @override
   String get connectCalls => 'Ulash';
   @override
+  String get mergeCalls => 'Birlashtirish';
+  @override
+  String get conference => 'Konferensiya';
+  @override
+  String get record => 'Yozib olish';
+  @override
+  String get recordingOn => 'Yozilmoqda';
+  @override
   String get failConnect => 'Ulab boʻlmadi';
   @override
   String get inCall => 'Suhbat davom etmoqda';
@@ -321,6 +329,8 @@ class _Uz extends S {
   String get showPhoneContacts => "Telefon kontaktlarini koʻrsatish";
   @override
   String get fromPhone => "Telefondan";
+  @override
+  String get myContacts => 'Oʻz kontaktlarim';
   @override
   String get phoneContactsTitle => "Telefon kontaktlari";
   @override

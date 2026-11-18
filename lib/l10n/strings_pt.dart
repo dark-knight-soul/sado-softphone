@@ -115,6 +115,14 @@ class _Pt extends S {
   @override
   String get connectCalls => 'Conectar';
   @override
+  String get mergeCalls => 'Mesclar';
+  @override
+  String get conference => 'Conferência';
+  @override
+  String get record => 'Gravar';
+  @override
+  String get recordingOn => 'Gravando';
+  @override
   String get failConnect => 'Não foi possível conectar as chamadas';
   @override
   String get inCall => 'Chamada em andamento';
@@ -321,6 +329,8 @@ class _Pt extends S {
   String get showPhoneContacts => "Mostrar contatos do celular";
   @override
   String get fromPhone => "Do celular";
+  @override
+  String get myContacts => 'Meus contatos';
   @override
   String get phoneContactsTitle => "Contatos do celular";
   @override

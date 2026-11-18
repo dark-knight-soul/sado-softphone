@@ -145,6 +145,14 @@ abstract class S {
   /// Кнопка «соединить» текущего собеседника с удержанным (и уйти из разговора).
   String get connectCalls;
 
+  /// Кнопка «объединить» оба разговора в конференцию и подпись самого звонка-конференции.
+  String get mergeCalls;
+  String get conference;
+
+  /// Запись разговора: кнопка «записать» и пометка «идёт запись».
+  String get record;
+  String get recordingOn;
+
   /// АТС не соединила двух собеседников.
   String get failConnect;
   String get inCall;
@@ -269,6 +277,9 @@ abstract class S {
   String get noContacts;
   String get showPhoneContacts;
   String get fromPhone;
+
+  /// Заголовок своих контактов, когда ниже идёт справочник сотрудников с АТС.
+  String get myContacts;
   String get phoneContactsTitle;
   String get saveToContacts;
   String get transferTitle;

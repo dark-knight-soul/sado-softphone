@@ -8,6 +8,7 @@ import '../platform/phone_contacts.dart';
 import '../state/call.dart';
 import '../state/contact_status.dart';
 import '../state/contacts.dart';
+import '../state/directory.dart';
 import '../state/home_filter.dart';
 import '../state/session.dart';
 import '../state/settings.dart';
@@ -38,6 +39,15 @@ class ContactsScreen extends ConsumerStatefulWidget {
 
 class _ContactsScreenState extends ConsumerState<ContactsScreen> {
   String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Открыли контакты — самое время обновить справочник сотрудников (не чаще раза в минуту).
+    Future.microtask(() {
+      if (mounted) ref.read(directoryProvider.notifier).refresh(force: true);
+    });
+  }
 
   bool _matches(Contact c, String query) {
     final q = query.trim().toLowerCase();
@@ -86,6 +96,15 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
     final all = ref.watch(contactsProvider);
     final people = all.where((c) => !c.isGroup && _matches(c, query)).toList();
     final groups = all.where((c) => c.isGroup && _matches(c, query)).toList();
+    // Справочник АТС по отделам, в порядке сервера. Тех, кто уже есть в своих контактах, не повторяем.
+    final own = {for (final c in all) c.number};
+    final directory = ref.watch(directoryProvider)?.entries ?? const <DirectoryEntry>[];
+    final byDepartment = <String, List<Contact>>{};
+    for (final e in directory) {
+      if (own.contains(e.number)) continue;
+      final c = Contact(name: e.name, number: e.number);
+      if (_matches(c, query)) (byDepartment[e.department] ??= []).add(c);
+    }
     // Адресная книга телефона: только чтение, поэтому у её строк нет меню «изменить / удалить».
     final phoneAll = ref.watch(visiblePhoneContactsProvider);
     final phone = phoneAll.where((c) => _matches(c, query)).toList();
@@ -162,14 +181,16 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
         ],
         ?phoneButton,
         Expanded(
-          child: people.isEmpty && groups.isEmpty && phone.isEmpty
+          child: people.isEmpty && groups.isEmpty && phone.isEmpty && byDepartment.isEmpty
               ? Center(
                   child: Padding(
                     padding: const EdgeInsets.all(32),
                     child: Text(
                       // Пусто, потому что ничего не нашлось, или потому что контактов ещё нет вовсе.
-                      all.isEmpty && phoneAll.isEmpty ? s.noContacts : s.nothingFound,
-                      key: Key(all.isEmpty && phoneAll.isEmpty ? 'contacts.empty' : 'contacts.notFound'),
+                      all.isEmpty && phoneAll.isEmpty && directory.isEmpty ? s.noContacts : s.nothingFound,
+                      key: Key(
+                        all.isEmpty && phoneAll.isEmpty && directory.isEmpty ? 'contacts.empty' : 'contacts.notFound',
+                      ),
                       textAlign: TextAlign.center,
                       style: TextStyle(color: p.muted, fontSize: 15),
                     ),
@@ -179,8 +200,23 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
                   padding: EdgeInsets.only(top: unified ? 0 : 12, bottom: 16),
                   children: [
                     if (people.isNotEmpty) ...[
-                      if (groups.isNotEmpty) SectionLabel(s.employees),
+                      // Заголовок нужен, только когда ниже идут другие разделы.
+                      if (byDepartment.isNotEmpty)
+                        SectionLabel(s.myContacts)
+                      else if (groups.isNotEmpty)
+                        SectionLabel(s.employees),
                       ListGroup(children: [for (final c in people) rowOf(c)]),
+                    ],
+                    // Коллеги из справочника АТС: их нельзя изменить или удалить, поэтому без меню.
+                    for (final MapEntry(key: department, value: colleagues) in byDepartment.entries) ...[
+                      SectionLabel(department.isEmpty ? s.employees : department),
+                      ListGroup(
+                        key: Key('contacts.department.$department'),
+                        children: [
+                          for (final c in colleagues)
+                            _ContactRow(contact: c, presence: statuses[c.number], onCall: () => dial(c)),
+                        ],
+                      ),
                     ],
                     if (groups.isNotEmpty) ...[
                       SectionLabel(s.departments),

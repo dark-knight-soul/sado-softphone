@@ -115,6 +115,14 @@ class _Tr extends S {
   @override
   String get connectCalls => 'Bağla';
   @override
+  String get mergeCalls => 'Birleştir';
+  @override
+  String get conference => 'Konferans';
+  @override
+  String get record => 'Kaydet';
+  @override
+  String get recordingOn => 'Kaydediliyor';
+  @override
   String get failConnect => 'Aramalar bağlanamadı';
   @override
   String get inCall => 'Görüşme sürüyor';
@@ -319,6 +327,8 @@ class _Tr extends S {
   String get showPhoneContacts => "Telefon kişilerini göster";
   @override
   String get fromPhone => "Telefondan";
+  @override
+  String get myContacts => 'Kişilerim';
   @override
   String get phoneContactsTitle => "Telefon kişileri";
   @override

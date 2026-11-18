@@ -5,7 +5,8 @@
 этот скрипт «позвонить с АТС» — скрипт выполняет команду в консоли Asterisk.
 
 Проверяется обмен с АТС (регистрация, звонки, удержание, второй звонок, перевод с консультацией,
-статусы), а не звук и не код Android.
+статусы), а не код Android. Звук проверяется только по счётчику АТС «пакеты дошли» и только по просьбе
+(SADO_STAND_MEDIA): слышно ли собеседника, так не узнать.
 
 Нужны: Flutter, Chrome, доступ к консоли Asterisk и тестовый номер. Настройки — переменными окружения:
 
@@ -18,6 +19,17 @@
   SADO_STAND_ASTERISK   как вызвать консоль Asterisk; по умолчанию «asterisk -rx»
                         (например: «wsl.exe -u root asterisk -rx» или «ssh pbx asterisk -rx»)
   SADO_STAND_CHROME     путь к Chrome, если он не найден сам
+  SADO_STAND_CONFERENCE префикс номера временной комнаты конференции (например *3), если АТС это умеет:
+                        тогда проверяется и «Объединить» (к префиксу добавляются 6 случайных цифр)
+  SADO_STAND_RECORD     код записи разговора по кнопке (например *1), если номеру она разрешена:
+                        тогда проверяется, что АТС начинает и останавливает запись (нужен звук, см. ниже)
+  SADO_STAND_MEDIA      поставьте 1, чтобы проверить, что звук от страницы доходит до АТС
+  SADO_STAND_LOCAL_MEDIA поставьте 1, если АТС работает на этом же компьютере под тем же сетевым адресом
+                        (например, WSL в режиме «mirrored»): иначе звук между браузером и АТС не ходит,
+                        а с ним не доходят и тоновые сигналы. Звук тогда идёт через 127.0.0.1 — это
+                        сработает, только если АТС принимает звук на всех адресах, а не на одном сетевом
+  SADO_STAND_ONLY       проверить только сценарии, в названии которых есть одно из слов (через запятую),
+                        например «звук,запись»; регистрация выполняется всегда
   SADO_STAND_PUSH_HINT  поставьте 1, если АТС показывает коллегам «спящий» номер с адресом push как свободный
                         (тогда проверяется и это: статус номера во сне и после выключения режима)
 
@@ -109,6 +121,23 @@ def hint():
     return ''
 
 
+def media():
+    """Строки статистики звука по каналам нашего номера (в них счётчики принятых и отправленных пакетов)."""
+    lines = [l for l in asterisk('pjsip show channelstats').splitlines() if ('%s-' % NUMBER) in l]
+    return chr(10).join(' '.join(l.split()) for l in lines)
+
+
+def recording():
+    """Записи, которые АТС сейчас ведёт на каналах нашего номера (вывод «mixmonitor list»)."""
+    found = []
+    for name in channels(True):
+        for line in asterisk('mixmonitor list %s' % name).splitlines():
+            # Строки с записью содержат путь к файлу; заголовок и пустой ответ пропускаем.
+            if '/' in line or '.wav' in line.lower():
+                found.append(' '.join(line.split()))
+    return chr(10).join(found)
+
+
 def hangup_mine():
     for name in channels(True) + channels(False):
         asterisk('channel request hangup %s' % name)
@@ -127,6 +156,12 @@ COMMANDS = {
     'contact': lambda: contact(),
     # Как АТС сейчас показывает наш номер подписчикам на статус (строка из списка подсказок).
     'hint': lambda: hint(),
+    # Список комнат конференций на АТС с числом участников.
+    'conferences': lambda: asterisk('confbridge list'),
+    # Сколько звуковых пакетов АТС получила от нашего номера (строки статистики его каналов).
+    'media': lambda: media(),
+    # Идёт ли запись на каналах нашего номера (пусто — не идёт).
+    'recording': lambda: recording(),
 }
 
 results = []
@@ -240,6 +275,10 @@ def build():
         'SADO_STAND_DOMAIN': os.environ.get('SADO_STAND_DOMAIN', ''),
         'SADO_STAND_ECHO': os.environ.get('SADO_STAND_ECHO', '*43'),
         'SADO_STAND_PUSH_HINT': os.environ.get('SADO_STAND_PUSH_HINT', ''),
+        'SADO_STAND_CONFERENCE': os.environ.get('SADO_STAND_CONFERENCE', ''),
+        'SADO_STAND_RECORD': os.environ.get('SADO_STAND_RECORD', ''),
+        'SADO_STAND_MEDIA': os.environ.get('SADO_STAND_MEDIA', ''),
+        'SADO_STAND_ONLY': os.environ.get('SADO_STAND_ONLY', ''),
     }
     # Пароль передаём сборке файлом, а не в командной строке; файл сразу удаляем.
     handle, path = tempfile.mkstemp(suffix='.json')
@@ -260,8 +299,89 @@ def build():
         unpatch_sip_ua()
 
 
+# Сценарий для страницы: что происходит со звуком и, по желанию, звук через 127.0.0.1.
+#
+# Звук через 127.0.0.1 нужен, когда АТС стоит на этом же компьютере и у неё тот же сетевой адрес, что у
+# браузера: пакеты на этот адрес остаются на своей стороне и до соседа не доходят, друг друга они видят
+# только по 127.0.0.1. Тогда к каждому адресу для звука, который предложила АТС, страница добавляет такой же
+# с 127.0.0.1 (а Chrome разрешаем пользоваться этим адресом — ключ в main()).
+LOCAL_MEDIA = os.environ.get('SADO_STAND_LOCAL_MEDIA') == '1'
+MEDIA_SCRIPT = r'''<script>
+(function () {
+  var P = window.RTCPeerConnection;
+  if (!P) return;
+  var local = __LOCAL__;
+  var connections = [];
+  var original = P.prototype.setRemoteDescription;
+  P.prototype.setRemoteDescription = function (description) {
+    if (connections.indexOf(this) < 0) connections.push(this);
+    try {
+      if (local && description && description.sdp) {
+        var lines = [];
+        var added = 0;
+        description.sdp.split(/\r?\n/).forEach(function (line) {
+          lines.push(line);
+          var m = /^a=candidate:(\S+) (\d+) (udp) (\d+) (\d+\.\d+\.\d+\.\d+) (\d+) typ host(.*)$/i.exec(line);
+          if (m && m[5] !== '127.0.0.1') {
+            lines.push('a=candidate:9' + m[1] + ' ' + m[2] + ' ' + m[3] + ' ' + m[4] + ' 127.0.0.1 ' + m[6] + ' typ host' + m[7]);
+            added++;
+          }
+        });
+        this.sadoAdded = (this.sadoAdded || 0) + added;
+        description = {type: description.type, sdp: lines.join('\r\n')};
+      }
+    } catch (error) {
+      this.sadoError = String(error);
+    }
+    return original.call(this, description);
+  };
+  // Состояние звуковых соединений одной строкой — для сообщения о сбое.
+  window.sadoMediaDiag = async function () {
+    var out = [];
+    for (var i = 0; i < connections.length; i++) {
+      var pc = connections[i];
+      if (pc.signalingState === 'closed') continue;
+      var line = 'ice=' + pc.iceConnectionState + ' соединение=' + pc.connectionState +
+          ' добавлено адресов 127.0.0.1: ' + (pc.sadoAdded || 0) + (pc.sadoError ? ' ошибка: ' + pc.sadoError : '');
+      try {
+        var stats = await pc.getStats();
+        var byId = {};
+        stats.forEach(function (s) { byId[s.id] = s; });
+        stats.forEach(function (s) {
+          if (s.type === 'local-candidate') line += ' | свой ' + s.candidateType + ' ' + s.address + ':' + s.port;
+          if (s.type === 'candidate-pair') {
+            var l = byId[s.localCandidateId] || {};
+            var r = byId[s.remoteCandidateId] || {};
+            line += ' | пара ' + l.address + ':' + l.port + '>' + r.address + ':' + r.port + ' ' + s.state +
+                (s.nominated ? ' выбрана' : '');
+          }
+        });
+      } catch (error) {
+        line += ' | статистика недоступна: ' + error;
+      }
+      out.push(line);
+    }
+    return out.join(' ;; ');
+  };
+})();
+</script>'''
+
+
+def add_media_script():
+    """Вставляет сценарий о звуке в собранную страницу."""
+    path = os.path.join(BUILD, 'index.html')
+    with open(path, encoding='utf-8') as f:
+        html = f.read()
+    if '<head>' not in html:
+        sys.exit('В собранной странице нет <head> — не могу вставить сценарий о звуке.')
+    script = MEDIA_SCRIPT.replace('__LOCAL__', 'true' if LOCAL_MEDIA else 'false')
+    with open(path, 'w', encoding='utf-8', newline=chr(10)) as f:
+        f.write(html.replace('<head>', '<head>' + script, 1))
+
+
 def main():
     build()
+    add_media_script()
     server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     profile = tempfile.mkdtemp(prefix='sado-stand-chrome-')
@@ -269,6 +389,7 @@ def main():
         find_chrome(), '--headless=new', '--no-first-run', '--disable-gpu',
         '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
         '--autoplay-policy=no-user-gesture-required', '--user-data-dir=' + profile,
+        *(['--allow-loopback-in-peer-connection'] if LOCAL_MEDIA else []),
         'http://127.0.0.1:%d/' % server.server_address[1],
     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     print('Страница открыта, идут проверки…', flush=True)

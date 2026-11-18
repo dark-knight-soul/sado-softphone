@@ -335,6 +335,16 @@ Kaynak kodu, kurulum kılavuzu ve sorun bildirimi: %s''' % LINK,
 
 # Что нового по версиям: код версии — это versionCode APK для arm64 (2000 + номер сборки из pubspec.yaml).
 CHANGELOGS = {
+    '2008': {
+        'en-US': '''• Company directory: colleagues from your PBX appear in Contacts, grouped by department
+• Conference: "Merge" joins your two calls into one room
+• Recording on demand: a "Record" button in a call asks the PBX to record it
+All three appear only when your PBX offers them; with other PBXes nothing changes''',
+        'ru-RU': '''• Справочник сотрудников: коллеги с вашей АТС появляются в «Контактах», по отделам
+• Конференция: «Объединить» соединяет два ваших разговора в один
+• Запись по кнопке: кнопка «Записать» в разговоре просит АТС записать его
+Всё это появляется, только если ваша АТС это умеет; с другими АТС ничего не меняется''',
+    },
     '2007': {
         'en-US': '''• QR scanner: works on devices that only have a front camera, uses less memory, and no longer reports a failed start as a missing camera permission
 • Reconnecting to the PBX right after a disconnect is more reliable

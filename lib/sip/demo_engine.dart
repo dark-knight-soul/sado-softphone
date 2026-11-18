@@ -187,6 +187,32 @@ class DemoEngine extends CallEngine {
     call.value = null;
   }
 
+  /// В какую комнату объединяли звонки последний раз — для тестов.
+  String? conferenceRoom;
+
+  @override
+  void conference(String room, {String? name}) {
+    final c = call.value;
+    final o = other.value;
+    if (c == null || o == null || c.phase != CallPhase.active || o.phase != CallPhase.active) return;
+    if (failConnect) {
+      reportFailure(CallFailure.transfer);
+      return;
+    }
+    conferenceRoom = room;
+    // Оба собеседника ушли в комнату, а на телефоне — один новый разговор с ней.
+    other.value = null;
+    call.value = CallInfo(
+      id: nextCallId(),
+      phase: CallPhase.active,
+      number: room,
+      name: name,
+      incoming: false,
+      secure: true,
+      since: DateTime.now(),
+    );
+  }
+
   @override
   void reject() => hangUp();
 
@@ -206,7 +232,10 @@ class DemoEngine extends CallEngine {
   void setRoute(AudioRoute route) => call.value = call.value?.copyWith(route: route.kind);
 
   @override
-  void sendDtmf(String tone) {}
+  void sendDtmf(String tone) => sentTones.add(tone);
+
+  /// Что набирали во время разговора (клавиши донабора и служебные коды) — для тестов.
+  final sentTones = <String>[];
 
   @override
   void dispose() {
