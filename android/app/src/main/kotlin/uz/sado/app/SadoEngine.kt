@@ -203,6 +203,29 @@ object SadoEngine {
                 pushWokeAt = 0L
                 result.success(at != 0L && android.os.SystemClock.elapsedRealtime() - at < 60_000)
             }
+            "systemCallsSupported" -> result.success(SystemCalls.supported(app))
+            "systemCallStart" -> {
+                SystemCalls.start(
+                    app,
+                    id = call.argument<Int>("id") ?: 0,
+                    number = call.argument<String>("number") ?: "",
+                    name = call.argument<String>("name"),
+                    incoming = call.argument<Boolean>("incoming") ?: false,
+                )
+                result.success(null)
+            }
+            "systemCallState" -> {
+                SystemCalls.state(call.argument<Int>("id") ?: 0, held = call.argument<Boolean>("held") ?: false)
+                result.success(null)
+            }
+            "systemCallEnd" -> {
+                SystemCalls.end(call.argument<Int>("id") ?: 0, call.argument<String>("reason") ?: "local")
+                result.success(null)
+            }
+            "systemCallRoute" -> {
+                SystemCalls.route(call.argument<Int>("id") ?: 0, call.argument<String>("kind") ?: "")
+                result.success(null)
+            }
             "appIcon" -> result.success(appIcon(app))
             "setAppIcon" -> {
                 setAppIcon(app, call.arguments as? String ?: "")

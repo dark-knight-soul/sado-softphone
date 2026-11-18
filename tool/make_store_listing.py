@@ -335,6 +335,12 @@ Kaynak kodu, kurulum kılavuzu ve sorun bildirimi: %s''' % LINK,
 
 # Что нового по версиям: код версии — это versionCode APK для arm64 (2000 + номер сборки из pubspec.yaml).
 CHANGELOGS = {
+    '2009': {
+        'en-US': '''• Experimental "System calls" mode (Settings, off by default): Android is told about SADO calls, so headset buttons, cars and watches can answer and hang up, and a mobile call puts the SADO call on hold
+The mode has not been tried on a phone yet — switch it off if the sound misbehaves. With the mode off nothing changes''',
+        'ru-RU': '''• Пробный режим «Системные звонки» (настройки, по умолчанию выключен): Android узнаёт о звонках SADO — отвечать и завершать можно кнопкой гарнитуры, из машины и с часов, а сотовый звонок ставит разговор на удержание
+Режим ещё не проверялся на телефоне — если со звуком что-то не так, выключите его. При выключенном режиме ничего не меняется''',
+    },
     '2008': {
         'en-US': '''• Company directory: colleagues from your PBX appear in Contacts, grouped by department
 • Conference: "Merge" joins your two calls into one room

@@ -256,6 +256,11 @@ class _Pt extends S {
   String get pushWakeNote =>
       'O app não fica conectado o tempo todo: quando chega uma chamada, o PABX acorda o celular com uma notificação push pelo Google. Gasta menos bateria e a chamada leva alguns segundos a mais para conectar. Ative apenas se o administrador confirmou que o PABX oferece suporte; caso contrário, as chamadas em segundo plano não chegarão.';
   @override
+  String get systemCalls => 'Chamadas do sistema (experimental)';
+  @override
+  String get systemCallsNote =>
+      'O telefone fica a saber das chamadas do SADO: os botões dos auriculares, o carro e o relógio funcionam, e uma chamada móvel normal coloca a conversa em espera em vez de cortar o som. O modo é novo — desative-o se o som falhar.';
+  @override
   String get batteryAsk => "Remover restrição de bateria";
   @override
   String get batteryOk => "Restrição de bateria removida";

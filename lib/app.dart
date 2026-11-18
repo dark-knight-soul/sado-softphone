@@ -7,6 +7,7 @@ import 'state/call.dart';
 import 'state/presence.dart';
 import 'state/session.dart';
 import 'state/settings.dart';
+import 'state/system_calls.dart';
 import 'theme/sado_icons.dart';
 import 'theme/sado_style.dart';
 import 'theme/styles.dart';
@@ -22,6 +23,7 @@ class SadoApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Уведомления о звонке и режим «на связи» (см. presence.dart).
     ref.watch(presenceProvider);
+    ref.watch(systemCallsProvider);
     final settings = ref.watch(settingsProvider);
     final spec = styleSpecOf(settings.styleId);
     final icons = SadoIcons.byId(settings.iconSet);

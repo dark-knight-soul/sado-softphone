@@ -257,6 +257,11 @@ class _Fr extends S {
   String get pushWakeNote =>
       "L'application ne reste pas connectée : à l'arrivée d'un appel, le standard réveille le téléphone par une notification push via Google. La batterie est moins sollicitée et l'appel met quelques secondes de plus à s'établir. N'activez ce mode que si votre administrateur a confirmé que le standard le prend en charge ; sinon, les appels en arrière-plan n'arriveront pas.";
   @override
+  String get systemCalls => 'Appels système (expérimental)';
+  @override
+  String get systemCallsNote =>
+      'Le téléphone est informé des appels SADO : les boutons du casque, la voiture et la montre fonctionnent, et un appel mobile ordinaire met la conversation en attente au lieu de couper le son. Ce mode est nouveau : désactivez-le si le son pose problème.';
+  @override
   String get batteryAsk => "Lever la restriction de batterie";
   @override
   String get batteryOk => "Restriction de batterie levée";

@@ -72,6 +72,20 @@ class AudioRoute {
   String toString() => 'AudioRoute(${kind.name}${label == null ? '' : ', $label'})';
 }
 
+/// Внешнее управление устройствами звука. Нужно, когда о звонке знает система звонков телефона: тогда она
+/// сама решает, куда идёт звук, и два «хозяина» (она и движок) мешали бы друг другу. Движок в этом случае
+/// берёт список устройств отсюда и сюда же передаёт выбор человека.
+abstract class AudioRouter implements Listenable {
+  /// Устройства, которые назвала система; null — сейчас она звуком не занимается, переключает сам движок.
+  List<AudioRoute>? get routes;
+
+  /// Куда звук идёт сейчас; null — система ещё не сказала.
+  AudioKind? get current;
+
+  /// Человек выбрал устройство.
+  void select(AudioKind kind);
+}
+
 @immutable
 class CallInfo {
   const CallInfo({
@@ -197,6 +211,23 @@ abstract class CallEngine {
   /// Устройства вывода звука, доступные сейчас (пусто, пока звонка нет или платформа их не назвала).
   final ValueNotifier<List<AudioRoute>> routes = ValueNotifier(const []);
 
+  AudioRouter? _audioRouter;
+
+  /// Кто-то снаружи (система звонков телефона), кто сам ведёт устройства звука; null — их ведёт движок.
+  AudioRouter? get audioRouter => _audioRouter;
+
+  set audioRouter(AudioRouter? router) {
+    if (identical(router, _audioRouter)) return;
+    _audioRouter?.removeListener(onAudioRouterChanged);
+    _audioRouter = router;
+    router?.addListener(onAudioRouterChanged);
+    onAudioRouterChanged();
+  }
+
+  /// У [audioRouter] изменился список устройств или выбранное устройство (или сменился он сам).
+  @protected
+  void onAudioRouterChanged() {}
+
   /// Статусы номеров, за которыми просили следить ([watchPresence]): свободен, говорит или не в сети.
   /// Номера, про которые АТС ничего не сообщила, в словаре отсутствуют.
   final ValueNotifier<Map<String, Presence>> presence = ValueNotifier(const {});
@@ -282,6 +313,8 @@ abstract class CallEngine {
 
   @mustCallSuper
   void dispose() {
+    _audioRouter?.removeListener(onAudioRouterChanged);
+    _audioRouter = null;
     _failures.close();
     presence.dispose();
     link.dispose();

@@ -1,0 +1,2 @@
+• Experimental "System calls" mode (Settings, off by default): Android is told about SADO calls, so headset buttons, cars and watches can answer and hang up, and a mobile call puts the SADO call on hold
+The mode has not been tried on a phone yet — switch it off if the sound misbehaves. With the mode off nothing changes

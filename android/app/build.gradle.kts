@@ -20,7 +20,11 @@ val useReleaseKey = keystorePropertiesFile.exists() && !project.hasProperty("deb
 
 android {
     namespace = "uz.sado.app"
-    compileSdk = flutter.compileSdkVersion
+    // Собираем с набором Android 36.1: его требует библиотека системных звонков (core-telecom 1.1.0).
+    // На то, как приложение ведёт себя на телефонах, это не влияет — за это отвечает targetSdk.
+    compileSdk {
+        version = release(36) { minorApiLevel = 1 }
+    }
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -134,5 +138,8 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$camerax")
     implementation("androidx.camera:camera-view:$camerax")
     implementation("com.google.zxing:core:3.5.4")
+    // Связь с системой звонков Android (пробный режим «Системные звонки», см. SystemCalls.kt).
+    implementation("androidx.core:core-telecom:1.1.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     testImplementation("junit:junit:4.13.2")
 }

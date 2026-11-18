@@ -257,6 +257,11 @@ class _Es extends S {
   String get pushWakeNote =>
       'La app no permanece conectada: cuando entra una llamada, la centralita despierta el teléfono con una notificación push a través de Google. Gasta menos batería y la llamada tarda unos segundos más en conectarse. Actívalo solo si tu administrador ha confirmado que la centralita lo admite; de lo contrario, las llamadas en segundo plano no llegarán.';
   @override
+  String get systemCalls => 'Llamadas del sistema (experimental)';
+  @override
+  String get systemCallsNote =>
+      'El teléfono conoce las llamadas de SADO: funcionan los botones de los auriculares, el coche y el reloj, y una llamada móvil normal pone la conversación en espera en lugar de cortar el sonido. El modo es nuevo: desactívelo si el sonido falla.';
+  @override
   String get batteryAsk => "Quitar restricción de batería";
   @override
   String get batteryOk => "Restricción de batería quitada";

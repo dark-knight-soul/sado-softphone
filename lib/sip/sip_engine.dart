@@ -323,7 +323,7 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
           // Звук пошёл — ещё раз говорим телефону, куда его выводить (к этому моменту его «звуковая часть»
           // точно запущена и послушается). У второго звонка звук уже мог идти в гарнитуру — повторяем
           // выбранное устройство, а не «громкая связь вкл/выкл», которое увело бы звук из гарнитуры.
-          unawaited(second ? _selectKind(c.route) : _setSpeakerphone(c.speaker));
+          if (!_systemAudio) unawaited(second ? _selectKind(c.route) : _setSpeakerphone(c.speaker));
           unawaited(_refreshRoutes());
         }
       case sip.CallStateEnum.STREAM:
@@ -515,6 +515,26 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
 
   // ---- Устройства вывода звука ----
 
+  /// Звук сейчас ведёт система звонков телефона ([audioRouter]), а не мы.
+  bool get _systemAudio => audioRouter?.routes != null;
+
+  @override
+  void onAudioRouterChanged() {
+    final router = audioRouter;
+    final c = call.value;
+    if (c == null) return;
+    final list = router?.routes;
+    if (list == null) {
+      // Система звуком не занимается (или перестала) — возвращаемся к своему списку устройств.
+      unawaited(_refreshRoutes());
+      return;
+    }
+    routes.value = list;
+    // Куда идёт звук, решает система (например, сама увела его в только что подключённую гарнитуру).
+    final current = router!.current;
+    if (current != null && current != c.route) call.value = c.copyWith(route: current);
+  }
+
   bool _watchingRoutes = false;
 
   /// Следим за подключением и отключением гарнитур, пока идёт звонок.
@@ -551,6 +571,10 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
   /// пока звук шёл в трубку), переводит звук на подходящее.
   Future<void> _refreshRoutes() async {
     if (kIsWeb) return;
+    if (_systemAudio) {
+      onAudioRouterChanged();
+      return;
+    }
     try {
       final devices = await rtc.Helper.audiooutputs;
       if (call.value == null) return; // звонок успел закончиться, пока ждали ответ телефона
@@ -593,6 +617,11 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
     if (call.value == null) return;
     call.value = call.value!.copyWith(route: kind);
     if (kIsWeb) return;
+    final router = audioRouter;
+    if (router != null && _systemAudio) {
+      router.select(kind);
+      return;
+    }
     final id = switch (kind) {
       AudioKind.earpiece => 'earpiece',
       AudioKind.speaker => 'speaker',
@@ -609,6 +638,7 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
 
   Future<void> _setSpeakerphone(bool on) async {
     if (kIsWeb) return; // в браузере звук идёт туда, куда выбрал сам браузер
+    if (_systemAudio) return; // звук ведёт система звонков телефона — см. [_selectKind]
     try {
       await rtc.Helper.setSpeakerphoneOn(on);
     } catch (_) {
@@ -747,6 +777,10 @@ class SipEngine extends CallEngine implements sip.SipUaHelperListener {
     if (call.value == null) return;
     // Выключая громкую связь, возвращаем звук в гарнитуру, если она есть, иначе в трубку.
     final off = _bestKind(routes.value.map((r) => r.kind).toSet()..remove(AudioKind.speaker));
+    if (_systemAudio) {
+      unawaited(_selectKind(on ? AudioKind.speaker : off));
+      return;
+    }
     if (on || off == AudioKind.earpiece || off == AudioKind.speaker) {
       // Прежний путь без списка устройств: так работает и там, где телефон список не назвал.
       call.value = call.value!.copyWith(speaker: on);

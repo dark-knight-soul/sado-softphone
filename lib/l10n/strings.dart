@@ -238,6 +238,10 @@ abstract class S {
   /// Режим «будить по звонку» (push): заголовок и пояснение.
   String get pushWake;
   String get pushWakeNote;
+
+  /// Пробный режим «Системные звонки»: телефон знает о звонках приложения (гарнитура, машина, сотовый звонок).
+  String get systemCalls;
+  String get systemCallsNote;
   String get batteryAsk;
   String get batteryOk;
   String get autostartAsk;

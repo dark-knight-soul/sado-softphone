@@ -256,6 +256,11 @@ class _Uz extends S {
   String get pushWakeNote =>
       'Ilova doimiy aloqada turmaydi: qoʻngʻiroq kelganda ATS telefonni Google orqali push-xabar bilan uygʻotadi. Batareya kamroq sarflanadi, qoʻngʻiroq bir necha soniya kechroq ulanadi. Faqat ATS administratori buni qoʻllab-quvvatlashini tasdiqlagan boʻlsa yoqing — aks holda fondagi qoʻngʻiroqlar yetib kelmaydi.';
   @override
+  String get systemCalls => 'Tizim qoʻngʻiroqlari (sinov rejimi)';
+  @override
+  String get systemCallsNote =>
+      'Telefon SADO qoʻngʻiroqlaridan xabardor boʻladi: garnitura tugmalari, avtomobil va soat ishlaydi, oddiy mobil qoʻngʻiroq esa ovozni uzmasdan suhbatni kutishga qoʻyadi. Rejim yangi — ovozda muammo boʻlsa, uni oʻchiring.';
+  @override
   String get batteryAsk => "Batareya cheklovini olib tashlash";
   @override
   String get batteryOk => "Batareya cheklovi olib tashlangan";

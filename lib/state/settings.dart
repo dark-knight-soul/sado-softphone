@@ -38,6 +38,7 @@ class Settings {
     required this.iconSet,
     required this.backgroundLink,
     required this.pushWake,
+    required this.systemCalls,
     required this.dnd,
     required this.phoneContacts,
   });
@@ -57,6 +58,10 @@ class Settings {
   /// будит телефон push-уведомлением. Действует, только если на телефоне есть push (см. push_mode.dart).
   final bool pushWake;
 
+  /// Пробный режим «Системные звонки»: сообщать системе звонков телефона о звонках приложения
+  /// (см. system_calls.dart). По умолчанию выключен.
+  final bool systemCalls;
+
   /// «Не беспокоить»: входящие не звонят, звонящий слышит «занято».
   final bool dnd;
 
@@ -72,6 +77,7 @@ class Settings {
     IconSetId? iconSet,
     bool? backgroundLink,
     bool? pushWake,
+    bool? systemCalls,
     bool? dnd,
     bool? phoneContacts,
   }) => Settings(
@@ -82,6 +88,7 @@ class Settings {
     iconSet: iconSet ?? this.iconSet,
     backgroundLink: backgroundLink ?? this.backgroundLink,
     pushWake: pushWake ?? this.pushWake,
+    systemCalls: systemCalls ?? this.systemCalls,
     dnd: dnd ?? this.dnd,
     phoneContacts: phoneContacts ?? this.phoneContacts,
   );
@@ -96,12 +103,23 @@ class Settings {
       other.iconSet == iconSet &&
       other.backgroundLink == backgroundLink &&
       other.pushWake == pushWake &&
+      other.systemCalls == systemCalls &&
       other.dnd == dnd &&
       other.phoneContacts == phoneContacts;
 
   @override
-  int get hashCode =>
-      Object.hash(styleId, themeMode, lang, answerMode, iconSet, backgroundLink, pushWake, dnd, phoneContacts);
+  int get hashCode => Object.hash(
+    styleId,
+    themeMode,
+    lang,
+    answerMode,
+    iconSet,
+    backgroundLink,
+    pushWake,
+    systemCalls,
+    dnd,
+    phoneContacts,
+  );
 }
 
 class SettingsController extends Notifier<Settings> {
@@ -112,6 +130,7 @@ class SettingsController extends Notifier<Settings> {
   static const _kIcons = 'iconSet';
   static const _kBackground = 'backgroundLink';
   static const _kPushWake = 'pushWake';
+  static const _kSystemCalls = 'systemCalls';
   static const _kDnd = 'dnd';
   static const _kPhoneContacts = 'phoneContacts';
 
@@ -128,6 +147,7 @@ class SettingsController extends Notifier<Settings> {
       iconSet: IconSetId.values.asNameMap()[p.getString(_kIcons)] ?? IconSetId.outlined,
       backgroundLink: p.getBool(_kBackground) ?? true,
       pushWake: p.getBool(_kPushWake) ?? false,
+      systemCalls: p.getBool(_kSystemCalls) ?? false,
       dnd: p.getBool(_kDnd) ?? false,
       phoneContacts: p.getBool(_kPhoneContacts) ?? false,
     );
@@ -165,6 +185,11 @@ class SettingsController extends Notifier<Settings> {
   void setPushWake(bool on) {
     state = state.copyWith(pushWake: on);
     _prefs.setBool(_kPushWake, on);
+  }
+
+  void setSystemCalls(bool on) {
+    state = state.copyWith(systemCalls: on);
+    _prefs.setBool(_kSystemCalls, on);
   }
 
   void setDnd(bool on) {

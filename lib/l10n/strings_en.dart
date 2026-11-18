@@ -255,6 +255,11 @@ class _En extends S {
   String get pushWakeNote =>
       'The app does not stay connected: when a call comes in, the PBX wakes the phone with a push notification through Google. It uses less battery, and calls take a few seconds longer to connect. Turn it on only if your PBX administrator has confirmed the PBX supports it — otherwise background calls will not arrive.';
   @override
+  String get systemCalls => 'System calls (experimental)';
+  @override
+  String get systemCallsNote =>
+      'The phone is told about SADO calls: headset buttons, cars and watches work, and a regular mobile call puts the conversation on hold instead of cutting the sound. This mode is new — turn it off if the sound misbehaves.';
+  @override
   String get batteryAsk => "Remove battery restriction";
   @override
   String get batteryOk => "Battery restriction removed";

@@ -255,6 +255,11 @@ class _Tr extends S {
   String get pushWakeNote =>
       'Uygulama sürekli bağlı kalmaz: arama geldiğinde santral telefonu Google üzerinden anlık bildirimle uyandırır. Pil daha az tüketilir, arama birkaç saniye daha geç bağlanır. Yalnızca yöneticiniz santralin bunu desteklediğini onayladıysa açın; aksi halde arka plandaki aramalar ulaşmaz.';
   @override
+  String get systemCalls => 'Sistem aramaları (deneysel)';
+  @override
+  String get systemCallsNote =>
+      'Telefon SADO aramalarından haberdar olur: kulaklık düğmeleri, araç ve saat çalışır, normal bir cep araması ise sesi kesmek yerine görüşmeyi beklemeye alır. Bu mod yenidir, seste sorun olursa kapatın.';
+  @override
   String get batteryAsk => "Pil kısıtlamasını kaldır";
   @override
   String get batteryOk => "Pil kısıtlaması kaldırıldı";

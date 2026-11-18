@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/push_info.dart';
+import '../sip/call_engine.dart' show AudioKind, AudioRoute;
 
 export '../data/push_info.dart';
 
@@ -115,6 +116,33 @@ abstract class CallKeeper {
   /// Адрес телефона для push сменился — АТС нужно сообщить новый ([pushInfo]).
   void Function()? onPushTokenChanged;
 
+  // ---- Система звонков телефона (пробный режим «Системные звонки») ----
+
+  /// Умеет ли телефон вести звонки приложения в своей системе звонков: тогда работают кнопка гарнитуры,
+  /// машина и часы, а сотовый звонок не отбирает звук молча.
+  Future<bool> systemCallsSupported() async => false;
+
+  /// Появился звонок [id] ([CallInfo.id]) — сообщаем системе.
+  Future<void> systemCallStart({required int id, required String number, String? name, required bool incoming}) async {}
+
+  /// Звонок соединён ([held] = false) или поставлен на удержание.
+  Future<void> systemCallState(int id, {required bool held}) async {}
+
+  /// Звонок закончился.
+  Future<void> systemCallEnd(int id, SystemCallEnd reason) async {}
+
+  /// Человек выбрал, куда выводить звук этого звонка.
+  Future<void> systemCallRoute(int id, AudioKind kind) async {}
+
+  /// Система просит что-то сделать со звонком (нажата кнопка гарнитуры, пришёл сотовый звонок и т. п.).
+  void Function(int id, SystemCallAction action)? onSystemCall;
+
+  /// Система назвала устройства звука для звонка и то, которое выбрано сейчас.
+  void Function(int id, List<AudioRoute> routes, AudioKind? current)? onSystemRoutes;
+
+  /// Система больше не ведёт этот звонок (он закончился или она его не приняла).
+  void Function(int id)? onSystemCallGone;
+
   /// Какой значок сейчас стоит на рабочем столе; null — значок выбирать нельзя.
   Future<String?> appIcon() async => null;
 
@@ -175,6 +203,33 @@ class AndroidCallKeeper extends CallKeeper {
           unawaited(takePendingDial());
         case 'pushWake':
           onPushWake?.call();
+        case 'systemCall':
+          final args = call.arguments;
+          if (args is Map && args['id'] is int) {
+            final action = SystemCallAction.values.asNameMap()[args['action']];
+            if (action != null) onSystemCall?.call(args['id'] as int, action);
+          }
+        case 'systemRoutes':
+          final args = call.arguments;
+          if (args is Map && args['id'] is int) {
+            final kinds = AudioKind.values.asNameMap();
+            final routes = <AudioRoute>[];
+            for (final item in args['routes'] is List ? args['routes'] as List : const <Object?>[]) {
+              if (item is! Map) continue;
+              final kind = kinds[item['kind']];
+              final name = item['name'];
+              // Одно устройство каждого вида, как и в обычном списке; имя нужно только гарнитуре Bluetooth.
+              if (kind == null || routes.any((r) => r.kind == kind)) continue;
+              routes.add(
+                AudioRoute(kind, kind == AudioKind.bluetooth && name is String && name.isNotEmpty ? name : null),
+              );
+            }
+            routes.sort((a, b) => a.kind.index.compareTo(b.kind.index));
+            onSystemRoutes?.call(args['id'] as int, routes, kinds[args['current']]);
+          }
+        case 'systemCallGone':
+          final id = call.arguments;
+          if (id is int) onSystemCallGone?.call(id);
         case 'pushToken':
           onPushTokenChanged?.call();
         case 'setupRequest':
@@ -290,6 +345,25 @@ class AndroidCallKeeper extends CallKeeper {
   Future<void> openFullScreenSettings() => _invoke<void>('openFullScreen');
 
   @override
+  Future<bool> systemCallsSupported() async => await _invoke<bool>('systemCallsSupported') ?? false;
+
+  @override
+  Future<void> systemCallStart({required int id, required String number, String? name, required bool incoming}) =>
+      _invoke<void>('systemCallStart', {'id': id, 'number': number, 'name': name, 'incoming': incoming});
+
+  @override
+  Future<void> systemCallState(int id, {required bool held}) =>
+      _invoke<void>('systemCallState', {'id': id, 'held': held});
+
+  @override
+  Future<void> systemCallEnd(int id, SystemCallEnd reason) =>
+      _invoke<void>('systemCallEnd', {'id': id, 'reason': reason.name});
+
+  @override
+  Future<void> systemCallRoute(int id, AudioKind kind) =>
+      _invoke<void>('systemCallRoute', {'id': id, 'kind': kind.name});
+
+  @override
   Future<String?> appIcon() => _invoke<String>('appIcon');
 
   @override
@@ -299,6 +373,24 @@ class AndroidCallKeeper extends CallKeeper {
   @override
   Future<void> openUrl(String url) => _invoke<void>('openUrl', url);
 }
+
+/// Чем закончился звонок — для системы звонков телефона.
+enum SystemCallEnd {
+  /// Положили трубку мы (или причина неизвестна).
+  local,
+
+  /// Положил трубку собеседник.
+  remote,
+
+  /// Входящий отклонён.
+  rejected,
+
+  /// На входящий не ответили.
+  missed,
+}
+
+/// Что система звонков телефона просит сделать со звонком.
+enum SystemCallAction { answer, hangUp, hold, unhold }
 
 /// Чем закончилось сканирование QR-кода.
 enum QrScanStatus {

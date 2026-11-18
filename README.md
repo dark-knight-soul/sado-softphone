@@ -263,12 +263,17 @@ Found a vulnerability? See [SECURITY.md](SECURITY.md).
   `tool/stand_check`); other PBXes may behave differently — please report.
 - Your own contacts are local. The company directory and the Merge and Record buttons need the optional endpoint described
   under [Directory and PBX features](#directory-and-pbx-features).
+- **System calls** (Settings, experimental, off by default) tells Android's own call system about SADO calls, so
+  that headset buttons, cars and watches can answer and hang up, a mobile call puts the SADO call on hold, and
+  the audio device is chosen through the system. It is covered by tests of the message order only and has not
+  been tried on a phone yet — if the sound misbehaves, switch it off.
 - Tested on a Xiaomi phone (HyperOS, Android 17). The background-permission shortcuts for other brands
   are implemented but have not been verified on real devices.
 
 ## Build from source
 
-Requirements: [Flutter](https://docs.flutter.dev/get-started/install) 3.50 or newer, JDK 17+, Android SDK.
+Requirements: [Flutter](https://docs.flutter.dev/get-started/install) 3.50 or newer, JDK 17+, Android SDK
+with platform 36.1 (`sdkmanager "platforms;android-36.1"`).
 
 ```bash
 git clone https://github.com/dark-knight-soul/sado-softphone.git
@@ -317,7 +322,8 @@ Flutter · [`sip_ua`](https://pub.dev/packages/sip_ua) (SIP over WebSocket) ·
 [`flutter_riverpod`](https://pub.dev/packages/flutter_riverpod) (state) ·
 [`flutter_secure_storage`](https://pub.dev/packages/flutter_secure_storage) ·
 Kotlin foreground service for background calls and notifications ·
-CameraX and [ZXing](https://github.com/zxing/zxing) for the on-device QR scanner.
+CameraX and [ZXing](https://github.com/zxing/zxing) for the on-device QR scanner ·
+[`core-telecom`](https://developer.android.com/jetpack/androidx/releases/core-telecom) for the experimental System calls mode.
 
 ## License
 

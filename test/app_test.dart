@@ -33,6 +33,9 @@ class FixedLinkEngine extends DemoEngine {
 }
 
 /// «Сторож звонка», который ничего не делает на телефоне, а записывает, что его просили.
+/// Умеет ли «телефон» систему звонков — для следующего pumpApp.
+bool systemCallsOnStart = false;
+
 class RecordingKeeper extends CallKeeper {
   final log = <String>[];
 
@@ -48,6 +51,27 @@ class RecordingKeeper extends CallKeeper {
     pendingDial = null;
     return number;
   }
+
+  /// Система звонков «телефона»: умеет ли он её (задаётся в [systemCallsOnStart] до pumpApp) и что ей сообщили.
+  bool systemCalls = systemCallsOnStart;
+  final system = <String>[];
+
+  @override
+  Future<bool> systemCallsSupported() async => systemCalls;
+
+  @override
+  Future<void> systemCallStart({required int id, required String number, String? name, required bool incoming}) async {
+    system.add('start $id $number ${incoming ? 'incoming' : 'outgoing'}');
+  }
+
+  @override
+  Future<void> systemCallState(int id, {required bool held}) async => system.add('${held ? 'held' : 'active'} $id');
+
+  @override
+  Future<void> systemCallEnd(int id, SystemCallEnd reason) async => system.add('end $id ${reason.name}');
+
+  @override
+  Future<void> systemCallRoute(int id, AudioKind kind) async => system.add('route $id ${kind.name}');
 
   /// Push на «телефоне»: сведения для АТС (null — push нет) и «приложение запущено push-уведомлением».
   PushInfo? push = pushOnStart;

@@ -9,6 +9,7 @@ import '../state/call.dart';
 import '../state/push_mode.dart';
 import '../state/session.dart';
 import '../state/settings.dart';
+import '../state/system_calls.dart';
 import '../theme/sado_icons.dart';
 import '../theme/sado_style.dart';
 import '../theme/styles.dart';
@@ -173,6 +174,23 @@ class SettingsScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
               child: Text(s.pushWakeNote, style: TextStyle(fontSize: 13, color: p.muted, height: 1.4)),
+            ),
+          ],
+          // Пробный режим виден только там, где телефон это умеет.
+          if (ref.watch(systemCallsSupportedProvider).value ?? false) ...[
+            SectionLabel(s.systemCalls),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Segmented<bool>(
+                key: const Key('settings.systemCalls'),
+                options: {false: s.dndOff, true: s.dndOn},
+                selected: settings.systemCalls,
+                onChanged: controller.setSystemCalls,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+              child: Text(s.systemCallsNote, style: TextStyle(fontSize: 13, color: p.muted, height: 1.4)),
             ),
           ],
           if (settings.backgroundLink) const _BatteryRow(),

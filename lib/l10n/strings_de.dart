@@ -257,6 +257,11 @@ class _De extends S {
   String get pushWakeNote =>
       'Die App bleibt nicht dauerhaft verbunden: Bei einem Anruf weckt die Telefonanlage das Telefon per Push-Benachrichtigung über Google. Das spart Akku, der Anruf wird einige Sekunden später verbunden. Nur einschalten, wenn Ihr Administrator bestätigt hat, dass die Telefonanlage das unterstützt – sonst kommen Anrufe im Hintergrund nicht an.';
   @override
+  String get systemCalls => 'Systemanrufe (experimentell)';
+  @override
+  String get systemCallsNote =>
+      'Das Telefon erfährt von SADO-Anrufen: Headset-Tasten, Auto und Uhr funktionieren, und ein normaler Mobilfunkanruf hält das Gespräch, statt den Ton zu unterbrechen. Der Modus ist neu – schalten Sie ihn aus, wenn der Ton Probleme macht.';
+  @override
   String get batteryAsk => "Akku-Einschränkung aufheben";
   @override
   String get batteryOk => "Akku-Einschränkung aufgehoben";

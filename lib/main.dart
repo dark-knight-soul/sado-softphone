@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'state/presence.dart';
 import 'state/settings.dart';
+import 'state/system_calls.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,5 +18,7 @@ Future<void> main() async {
   // Связь с АТС и уведомления запускаем сразу и независимо от экранов: на Android код может работать
   // и без окна — когда его разбудила фоновая служба, а приложение никто не открывал.
   container.listen(presenceProvider, (_, _) {});
+  // Пробный режим «Системные звонки»: пересказ звонков системе телефона (см. system_calls.dart).
+  container.listen(systemCallsProvider, (_, _) {});
   runApp(UncontrolledProviderScope(container: container, child: const SadoApp()));
 }
